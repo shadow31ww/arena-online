@@ -15,7 +15,7 @@ app.get('/health', (_req, res) => res.json({ ok: true, rooms: rooms.size }));
 
 function code() { return crypto.randomBytes(3).toString('hex').toUpperCase(); }
 function send(ws, data) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(data)); }
-function roomInfo(room) { return { room: room.code, seed: room.seed, mode: room.mode, maxPlayers: 2, playerCount: room.players.length }; }
+function roomInfo(room) { return { room: room.code, seed: room.seed, mode: room.mode, maxPlayers: room.max || 2, playerCount: room.players.length }; }
 function broadcast(room, data, except) { for (const p of room.players) if (p !== except) send(p, data); }
 function removePlayer(ws) {
   const room = ws.room;
@@ -39,7 +39,7 @@ wss.on('connection', ws => {
       let roomCode = String(d.room || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
       if (!roomCode) roomCode = code();
       if (rooms.has(roomCode)) { send(ws, { type: 'error', message: 'Ese código ya está ocupado. Crea otra sala.' }); return; }
-      const room = { code: roomCode, password: String(d.password || ''), mode: ['race','chameleon','battlezone','1v1fps'].includes(d.mode) ? d.mode : '1v1', seed: crypto.randomInt(1, 0x7fffffff), players: [], names: new Map(), host: ws, started: false, raceReady: new Set() };
+      const room = { code: roomCode, password: String(d.password || ''), mode: ['race','chameleon','battlezone','1v1fps','ffa3'].includes(d.mode) ? d.mode : '1v1', max: d.mode === 'ffa3' ? 3 : 2, seed: crypto.randomInt(1, 0x7fffffff), players: [], names: new Map(), host: ws, started: false, raceReady: new Set() };
       rooms.set(roomCode, room); room.players.push(ws); ws.room = room; ws.role = 'host'; ws.playerName = String(d.name || 'Jugador').slice(0, 24);
       send(ws, { type: 'created', ...roomInfo(room) });
       return;
@@ -51,13 +51,21 @@ wss.on('connection', ws => {
       const room = rooms.get(roomCode);
       if (!room) { send(ws, { type: 'error', message: 'No existe esa sala. Revisa el código.' }); return; }
       if (room.password !== String(d.password || '')) { send(ws, { type: 'error', message: 'La contraseña no coincide.' }); return; }
-      if (room.started || room.players.length >= 2) { send(ws, { type: 'error', message: 'La sala ya está llena.' }); return; }
+      if (room.started || room.players.length >= (room.max || 2)) { send(ws, { type: 'error', message: 'La sala ya está llena.' }); return; }
       if (room.mode !== d.mode && d.mode) { send(ws, { type: 'error', message: 'El modo no coincide con el anfitrión. Elige el mismo modo.' }); return; }
       room.players.push(ws); ws.room = room; ws.role = 'guest'; ws.playerName = String(d.name || 'Jugador').slice(0, 24);
+      if (room.players.length < (room.max || 2)) {
+        // Sala de 3 jugadores todavía incompleta: avisa a todos y espera.
+        broadcast(room, { type: 'waiting', message: 'Esperando a que se llene la sala…', ...roomInfo(room) });
+        return;
+      }
       room.started = true;
-      const host = room.host;
-      send(host, { type: 'ready', role: 'host', peerName: ws.playerName, ...roomInfo(room) });
-      send(ws, { type: 'ready', role: 'guest', peerName: host.playerName || 'Anfitrión', ...roomInfo(room) });
+      room.players.forEach((p, i) => { p.slot = i; });
+      const peersOf = me => room.players.filter(p => p !== me).map(p => ({ slot: p.slot, name: p.playerName || 'Jugador' }));
+      for (const p of room.players) {
+        const first = peersOf(p)[0];
+        send(p, { type: 'ready', role: p === room.host ? 'host' : 'guest', slot: p.slot, peers: peersOf(p), peerName: first ? first.name : 'Rival', ...roomInfo(room) });
+      }
       return;
     }
 
@@ -80,7 +88,7 @@ wss.on('connection', ws => {
       return;
     }
     // Game state and combat/building events are forwarded to the other player.
-    broadcast(room, d, ws);
+    broadcast(room, { ...d, from: ws.slot }, ws);
   });
   ws.on('close', () => removePlayer(ws));
   ws.on('error', () => removePlayer(ws));
