@@ -488,7 +488,7 @@ canvas{touch-action:none}
     <label>CÓDIGO DE SALA</label>
     <input type="text" id="roomIn" maxlength="12" placeholder="Al crear se genera automáticamente">
     <label>MODO DE LA SALA</label>
-    <div class="row" id="lanModeRow"><button type="button" class="opt on" data-lan-mode="1v1">⚔️ COMBATE 1v1</button><button type="button" class="opt" data-lan-mode="1v1fps">🎯 DUELO FPS</button><button type="button" class="opt" data-lan-mode="race">🏁 CARRERAS</button><button type="button" class="opt" data-lan-mode="chameleon">🦎 CAMALEÓN</button><button type="button" class="opt" data-lan-mode="battlezone">☣️ ZONA DE BATALLA</button></div>
+    <div class="row" id="lanModeRow"><button type="button" class="opt on" data-lan-mode="1v1">⚔️ COMBATE 1v1</button><button type="button" class="opt" data-lan-mode="1v1fps">🎯 DUELO FPS</button><button type="button" class="opt" data-lan-mode="race">🏁 CARRERAS</button><button type="button" class="opt" data-lan-mode="chameleon">🦎 CAMALEÓN</button><button type="button" class="opt" data-lan-mode="battlezone">☣️ ZONA DE BATALLA</button><button type="button" class="opt" data-lan-mode="ffa3">🔫 TODOS VS TODOS (3)</button></div>
     <div id="lanRaceTrackWrap" class="hidden" style="margin-top:12px">
       <label for="lanRaceTrack">🗺️ MAPA DE CARRERAS LAN (ELIGE EL ANFITRIÓN)</label>
       <select id="lanRaceTrack" class="lan-select" aria-describedby="lanRaceTrackHelp"></select>
@@ -496,7 +496,7 @@ canvas{touch-action:none}
       <label>🌦️ CLIMA DE LA CARRERA (ELIGE EL ANFITRIÓN)</label>
       <div class="row" id="lanWeatherRow" style="margin-top:6px"><button type="button" class="opt" data-weather="cloudy">☁️ Nublado</button><button type="button" class="opt" data-weather="rainy">🌧️ Lluvioso</button><button type="button" class="opt" data-weather="foggy">🌫️ Neblina</button><button type="button" class="opt on" data-weather="sunny">🌅 Soleado</button></div>
     </div>
-    <div class="tag" style="margin:5px 0 12px">Salas online para 2 jugadores. No necesitas abrir puertos ni estar en la misma Wi-Fi.</div>
+    <div class="tag" style="margin:5px 0 12px">Salas online de 2 jugadores (3 en Todos vs todos). No necesitas abrir puertos ni estar en la misma Wi-Fi.</div>
     <label>CONTRASEÑA (OPCIONAL)</label>
     <input type="password" id="roomPass" maxlength="64" placeholder="Déjala vacía para entrar con código">
     <div class="row" style="margin-top:16px">
@@ -2284,8 +2284,8 @@ function damageActor(t,d,src,head,special){
   if(t.isPlayer){flashVignette();sfx.hurt();}
   if(t.hp<=0){t.hp=0;killActor(t,src,head);}
   if(net.active&&src&&src.isPlayer&&t.netRemote&&!net.applyingRemote){
-    net.lastOutgoingHitRev++;
-    lanSend({type:'hit',rev:net.lastOutgoingHitRev,hp:t.hp,shield:t.shield,alive:t.alive,head:!!head,srcName:src.name});
+    const ts=netSlotOf(t);net.outRevs[ts]=(net.outRevs[ts]||0)+1;
+    lanSend({type:'hit',to:ts,rev:net.outRevs[ts],hp:t.hp,shield:t.shield,alive:t.alive,head:!!head,srcName:src.name});
   }
 }
 function killActor(t,src,head){
@@ -3067,12 +3067,14 @@ function createBattleZoneFacade(){
   if(sign){const txt=document.createElement('canvas');txt.width=512;txt.height=96;const ctx=txt.getContext('2d');ctx.fillStyle='#263946';ctx.fillRect(0,0,512,96);ctx.fillStyle='#aaff76';ctx.font='bold 44px sans-serif';ctx.textAlign='center';ctx.fillText('ZONA DE BATALLA',256,62);const tex=new THREE.CanvasTexture(txt);const label=new THREE.Mesh(new THREE.PlaneGeometry(18,1.3),new THREE.MeshBasicMaterial({map:tex,transparent:true}));label.position.set(0,11.95,wallZ+.72);scene.add(label);worldObjs.push(label);}
 }
 
-const net={gen:0,ws:null,active:false,connecting:false,role:'',room:'',seed:1,peerName:'Rival',roomMode:'1v1',requestedMode:'1v1',requestedMaxPlayers:2,roomMaxPlayers:2,roomPlayerCount:1,previousMode:null,pendingAction:null,intentionalClose:false,applyingRemote:false,syncT:0,lastRemoteState:null,hostPhase:null,lastOutgoingHitRev:0,lastIncomingHitRev:0,lastSentCustomShirtId:'',raceTrackIndex:0};
+const net={gen:0,slot:0,peers:[],remoteStates:{},inRevs:{},outRevs:{},ws:null,active:false,connecting:false,role:'',room:'',seed:1,peerName:'Rival',roomMode:'1v1',requestedMode:'1v1',requestedMaxPlayers:2,roomMaxPlayers:2,roomPlayerCount:1,previousMode:null,pendingAction:null,intentionalClose:false,applyingRemote:false,syncT:0,lastRemoteState:null,hostPhase:null,lastOutgoingHitRev:0,lastIncomingHitRev:0,lastSentCustomShirtId:'',raceTrackIndex:0};
 const race={active:false,started:false,waitingForNetworkStart:false,readyLocal:false,objects:[],cars:[],localCar:null,remoteCar:null,track:null,trackIndex:0,bombs:[],effects:[],debris:[],elapsed:0,syncT:0,aiBombT:0,resolvedBombs:new Set(),finished:false,turboHeld:false,fireHeld:false,fireCd:0,hudT:0,trackLength:0,aimX:window.innerWidth*.5,aimY:window.innerHeight*.5,raycaster:new THREE.Raycaster(),aimNdc:new THREE.Vector2(),previousFog:null,previousBackground:null,previousGroundVisible:null,previousCameraFar:null,previousSunIntensity:null,previousHemiIntensity:null,hiddenArenaObjects:[],weather:'sunny',opponents:'bots',selectedTrackIndex:0,remoteReady:false,networkStartSent:false,rainMesh:null,drifting:false,headlightsOn:false,headlights:[],rainAudio:null,engineAudio:null,weatherAudioTimer:0};
 addEventListener('mousemove',e=>{race.aimX=e.clientX;race.aimY=e.clientY;const aim=$('raceAim');if(aim){aim.style.left=e.clientX+'px';aim.style.top=e.clientY+'px';}});
 addEventListener('resize',()=>{if(!race.aimX)race.aimX=window.innerWidth*.5;if(!race.aimY)race.aimY=window.innerHeight*.5;});
 function lanStatus(t){$('lanStatus').textContent=t;}
 function withSeed(seed,fn){const old=Math.random;let x=(Number(seed)>>>0)||1;Math.random=()=>{x=(x*1664525+1013904223)>>>0;return x/4294967296;};try{return fn();}finally{Math.random=old;}}
+function resetNetSync(){net.lastRemoteState=null;net.remoteStates={};net.hostPhase=null;net.lastOutgoingHitRev=0;net.lastIncomingHitRev=0;net.outRevs={};net.inRevs={};}
+function netSlotOf(a){return a&&a.netSlot!==undefined?a.netSlot:(net.slot===0?1:0);}
 function lanSend(obj){if(net.ws&&net.ws.readyState===WebSocket.OPEN){try{net.ws.send(JSON.stringify(obj));return true;}catch(e){}}return false;}
 
 /* ================= MODO CARRERAS ================= */
@@ -3555,7 +3557,8 @@ function lanMessage(d){
   }else if(d.type==='waiting'){
     net.roomPlayerCount=clamp(Number(d.playerCount)||1,1,5);net.roomMaxPlayers=clamp(Number(d.maxPlayers)||net.roomMaxPlayers||2,1,5);if(d.role)net.role=d.role;if(d.room)net.room=d.room;if(d.seed)net.seed=d.seed;if(d.mode)net.roomMode=d.mode;lanStatus((d.message||'Esperando a que se llene la sala…')+' ('+net.roomPlayerCount+'/'+net.roomMaxPlayers+')');
   }else if(d.type==='ready'){
-    net.gen=0;net.active=true;net.role=d.role;net.room=d.room;net.seed=d.seed||1;net.roomMode=d.mode||d.roomMode||net.requestedMode||'1v1';net.roomMaxPlayers=clamp(Number(d.maxPlayers)||net.roomMaxPlayers||net.requestedMaxPlayers||2,1,5);net.roomPlayerCount=clamp(Number(d.playerCount)||net.roomMaxPlayers,1,5);net.peerName=d.peerName||'Rival';net.lastRemoteState=null;net.hostPhase=null;net.lastOutgoingHitRev=0;net.lastIncomingHitRev=0;net.lastSentCustomShirtId='';
+    net.gen=0;net.active=true;net.role=d.role;net.room=d.room;net.seed=d.seed||1;net.roomMode=d.mode||d.roomMode||net.requestedMode||'1v1';net.roomMaxPlayers=clamp(Number(d.maxPlayers)||net.roomMaxPlayers||net.requestedMaxPlayers||2,1,5);net.roomPlayerCount=clamp(Number(d.playerCount)||net.roomMaxPlayers,1,5);net.peerName=d.peerName||'Rival';resetNetSync();net.lastSentCustomShirtId='';
+    net.slot=Number.isInteger(d.slot)?d.slot:(d.role==='host'?0:1);net.peers=Array.isArray(d.peers)&&d.peers.length?d.peers.map(p=>({slot:Number(p.slot)||0,name:String(p.name||'Rival').slice(0,24)})):[{slot:net.slot===0?1:0,name:d.peerName||'Rival'}];
     startNetworkMatch();
   }else if(d.type==='error'){
     $('againBtn').disabled=false;$('againBtn').textContent='JUGAR DE NUEVO';
@@ -3586,18 +3589,20 @@ function lanMessage(d){
       if(/^customshirt_[a-z0-9_-]{5,70}$/i.test(String(cs.id||''))&&typeof cs.image==='string'&&cs.image.startsWith('data:image/jpeg;base64,')&&cs.image.length<=350000){remoteCustomShirts.set(String(cs.id),{id:String(cs.id),name:String(cs.name||'Camisa LAN').slice(0,28),image:cs.image});}
     }
     if(d.state&&d.state.gen!==undefined&&d.state.gen!==net.gen){/* estado de una partida anterior: se ignora */}else{
-    net.lastRemoteState=d.state;
-    if(net.role==='guest'&&d.state&&d.state.phase){net.hostPhase={phase:d.state.phase,stateT:d.state.stateT||0,roundNo:d.state.roundNo||1};if(Array.isArray(d.state.scores)&&d.state.scores.length===scores.length){scores=d.state.scores.slice(0,scores.length);updateScoreboard();}}
+    {const fr=Number.isInteger(d.from)?d.from:(net.slot===0?1:0);net.remoteStates[fr]=d.state;net.lastRemoteState=d.state;}
+    if(net.role==='guest'&&d.state&&d.state.phase&&(!Number.isInteger(d.from)||d.from===0)){net.hostPhase={phase:d.state.phase,stateT:d.state.stateT||0,roundNo:d.state.roundNo||1};if(Array.isArray(d.state.scores)&&d.state.scores.length===scores.length){scores=d.state.scores.slice(0,scores.length);updateScoreboard();}}
     }
   }else if(d.type==='shot-fx'){
     // Efectos de bala del rival: solo visuales, el daño se sincroniza por el evento hit.
     if(net.active&&d.a&&d.b){const a=new THREE.Vector3(Number(d.a.x)||0,Number(d.a.y)||0,Number(d.a.z)||0),b=new THREE.Vector3(Number(d.b.x)||0,Number(d.b.y)||0,Number(d.b.z)||0);tracer(a,b,clamp(Number(d.life)||.16,.08,.4));}
   }else if(d.type==='hit'){
-    if(!player||!net.active||d.rev<=net.lastIncomingHitRev)return;
-    net.lastIncomingHitRev=d.rev;
+    const hf=Number.isInteger(d.from)?d.from:(net.slot===0?1:0);
+    if(Number.isInteger(d.to)&&d.to!==net.slot)return;
+    if(!player||!net.active||d.rev<=(net.inRevs[hf]||0))return;
+    net.inRevs[hf]=d.rev;
     const oldHp=player.hp,wasAlive=player.alive;
-    player.hp=clamp(Number(d.hp)||0,0,100);player.shield=clamp(Number(d.shield)||0,0,50);
-    if(d.alive===false){player.hp=0;player.alive=false;if(wasAlive){const rival=actors.find(a=>a.netRemote);killActor(player,rival,!!d.head);}}
+    {const nh=clamp(Number(d.hp)||0,0,100),ns=clamp(Number(d.shield)||0,0,50),multi=net.roomMaxPlayers>2;player.hp=multi?Math.min(player.hp,nh):nh;player.shield=multi?Math.min(player.shield,ns):ns;}
+    if(d.alive===false){player.hp=0;player.alive=false;if(wasAlive){const rival=actors.find(a=>a.netRemote&&netSlotOf(a)===hf)||actors.find(a=>a.netRemote);killActor(player,rival,!!d.head);}}
     else if(player.hp<oldHp){flashVignette();sfx.hurt();}
   }else if(d.type==='build'){
     if(d.piece)addNetworkPiece(d.piece);
@@ -3606,13 +3611,13 @@ function lanMessage(d){
   }else if(d.type==='pickup'){
     const i=pickups.findIndex(p=>p.type===d.pickupType&&Math.hypot(p.x-d.x,p.z-d.z)<1);if(i>=0)removePickup(i);
   }else if(d.type==='weapon-equipped'){
-    const remote=actors.find(a=>a.netRemote);
+    const wf=Number.isInteger(d.from)?d.from:(net.slot===0?1:0);const remote=actors.find(a=>a.netRemote&&netSlotOf(a)===wf)||actors.find(a=>a.netRemote);
     if(remote&&Number.isInteger(d.weaponIndex)&&d.weaponIndex>=0&&d.weaponIndex<WIDS.length){
       remote.wIdx=d.weaponIndex;remote.mode=['weapon','wall','floor','ramp','hide'].includes(d.playerMode)?d.playerMode:'weapon';
-      if(net.lastRemoteState)net.lastRemoteState={...net.lastRemoteState,weaponIndex:remote.wIdx,playerMode:remote.mode};
+      if(net.remoteStates[wf])net.remoteStates[wf]={...net.remoteStates[wf],weaponIndex:remote.wIdx,playerMode:remote.mode};
     }
   }else if(d.type==='rematch-ready'){
-    net.gen=(net.gen||0)+1;scores.fill(0);roundNo=1;net.seed=d.seed||net.seed;net.lastRemoteState=null;net.hostPhase=null;net.lastOutgoingHitRev=0;net.lastIncomingHitRev=0;paused=false;
+    net.gen=(net.gen||0)+1;scores.fill(0);roundNo=1;net.seed=d.seed||net.seed;resetNetSync();paused=false;
     $('againBtn').disabled=false;$('againBtn').textContent='JUGAR DE NUEVO';$('end').classList.add('hidden');$('hud').classList.remove('hidden');audio();if(AC&&AC.resume)AC.resume();startMatch();
     $('netReadySub').textContent='Rival: '+net.peerName+'. Nueva partida lista.';$('netReady').classList.remove('hidden');
   }else if(d.type==='peer-left'){
@@ -3622,16 +3627,16 @@ function lanMessage(d){
 function startNetworkMatch(){
   if(net.previousMode===null)net.previousMode=settings.mode;
   settings.name=($('nameIn').value||'Jugador').trim().slice(0,14)||'Jugador';
-  settings.mode=['race','chameleon','battlezone','1v1fps'].includes(net.roomMode)?net.roomMode:'1v1';
+  settings.mode=net.roomMode==='ffa3'?'ffa':['race','chameleon','battlezone','1v1fps'].includes(net.roomMode)?net.roomMode:'1v1';
   $('lanPanel').classList.add('hidden');$('menu').classList.add('hidden');
   startMatch();
   if(net.roomMode==='race'&&net.role==='host'){
     net.raceTrackIndex=clamp(Math.trunc(Number(race.selectedTrackIndex)||0),0,RACE_TRACKS.length-1);
     lanSend({type:'race-config',trackIndex:net.raceTrackIndex});
   }
-  const readyText=net.roomMode==='race'?('Rival: '+net.peerName+'. Ambos deben pulsar “Estoy listo para correr”. Capacidad: '+net.roomMaxPlayers+' jugadores. Pista: '+(race.track?race.track.name:'Mega Circuito Turbo · Pista única')):net.roomMode==='chameleon'?('Rival: '+net.peerName+'. Anfitrión = buscador; invitado = escondedor. Tres bots completan los cuatro escondedores. Capacidad de sala: '+net.roomMaxPlayers+'.'):net.roomMode==='battlezone'?('Rival: '+net.peerName+'. La batalla comienza tras 10 segundos; sal de la nube verde y permanece dentro del círculo. Capacidad: '+net.roomMaxPlayers+'.'):('Rival: '+net.peerName+'. Pulsa el botón para entrar al combate. Capacidad de sala: '+net.roomMaxPlayers+'.');
+  const readyText=net.roomMode==='ffa3'?('Todos vs todos con '+net.roomMaxPlayers+' jugadores: '+net.peers.map(p=>p.name).join(' y ')+'. Gana el primero en conseguir 3 rondas.'):net.roomMode==='race'?('Rival: '+net.peerName+'. Ambos deben pulsar “Estoy listo para correr”. Capacidad: '+net.roomMaxPlayers+' jugadores. Pista: '+(race.track?race.track.name:'Mega Circuito Turbo · Pista única')):net.roomMode==='chameleon'?('Rival: '+net.peerName+'. Anfitrión = buscador; invitado = escondedor. Tres bots completan los cuatro escondedores. Capacidad de sala: '+net.roomMaxPlayers+'.'):net.roomMode==='battlezone'?('Rival: '+net.peerName+'. La batalla comienza tras 10 segundos; sal de la nube verde y permanece dentro del círculo. Capacidad: '+net.roomMaxPlayers+'.'):('Rival: '+net.peerName+'. Pulsa el botón para entrar al combate. Capacidad de sala: '+net.roomMaxPlayers+'.');
   $('netReadySub').textContent=readyText;
-  $('netGoBtn').textContent=net.roomMode==='race'?'ESTOY LISTO PARA CORRER':net.roomMode==='1v1fps'?'ENTRAR AL DUELO FPS':net.roomMode==='chameleon'?'ENTRAR · BUSCADOR / ESCONDEDOR':net.roomMode==='battlezone'?'ENTRAR A ZONA DE BATALLA':'ENTRAR AL 1v1';
+  $('netGoBtn').textContent=net.roomMode==='race'?'ESTOY LISTO PARA CORRER':net.roomMode==='1v1fps'?'ENTRAR AL DUELO FPS':net.roomMode==='chameleon'?'ENTRAR · BUSCADOR / ESCONDEDOR':net.roomMode==='battlezone'?'ENTRAR A ZONA DE BATALLA':net.roomMode==='ffa3'?'ENTRAR A TODOS VS TODOS':'ENTRAR AL 1v1';
   $('netReady').classList.remove('hidden');
 }
 function lanPeerLeft(message){
@@ -3642,18 +3647,17 @@ function lanPeerLeft(message){
 function disconnectLan(restoreMode=true){
   net.intentionalClose=true;
   if(net.ws){const old=net.ws;old.__intentionalClose=true;try{if(old.readyState===WebSocket.OPEN)old.send(JSON.stringify({type:'leave'}));old.close();}catch(e){}net.ws=null;}
-  net.active=false;net.connecting=false;net.pendingAction=null;net.role='';net.room='';net.lastRemoteState=null;net.hostPhase=null;net.lastOutgoingHitRev=0;net.lastIncomingHitRev=0;
+  net.active=false;net.connecting=false;net.pendingAction=null;net.role='';net.room='';resetNetSync();
   if(restoreMode&&net.previousMode!==null){settings.mode=net.previousMode;if(typeof setMode==='function')setMode(settings.mode);net.previousMode=null;}
 }
 function netUpdate(dt){
   if(!net.active||!player)return;
-  const remote=actors.find(a=>a.netRemote);
-  if(remote&&net.lastRemoteState){const s=net.lastRemoteState;if(s.cosmetics&&typeof s.cosmetics==='object')setActorCosmetic(remote,s.cosmetics);else if(typeof s.cosmetic==='string'&&remote.cosmeticId!==s.cosmetic)setActorCosmetic(remote,s.cosmetic);if(typeof s.skin==='string'&&remote.skinId!==s.skin)setActorSkin(remote,s.skin);if(Number.isInteger(s.weaponIndex)){remote.wIdx=clamp(s.weaponIndex,0,WIDS.length-1);remote.mode=['weapon','wall','floor','ramp','hide'].includes(s.playerMode)?s.playerMode:'weapon';}const k=Math.min(1,dt*18);if(Number.isFinite(s.x))remote.x+=(s.x-remote.x)*k;if(Number.isFinite(s.y))remote.y+=(s.y-remote.y)*k;if(Number.isFinite(s.z))remote.z+=(s.z-remote.z)*k;if(Number.isFinite(s.yaw))remote.yaw+=wrap(s.yaw-remote.yaw)*k;if(Number.isFinite(s.pitch))remote.pitch+=(s.pitch-remote.pitch)*k;remote.speed=Number(s.speed)||0;remote.grounded=!!s.grounded;
+  for(const remote of actors){if(!remote.netRemote)continue;const s=net.remoteStates[netSlotOf(remote)];if(s){if(s.cosmetics&&typeof s.cosmetics==='object')setActorCosmetic(remote,s.cosmetics);else if(typeof s.cosmetic==='string'&&remote.cosmeticId!==s.cosmetic)setActorCosmetic(remote,s.cosmetic);if(typeof s.skin==='string'&&remote.skinId!==s.skin)setActorSkin(remote,s.skin);if(Number.isInteger(s.weaponIndex)){remote.wIdx=clamp(s.weaponIndex,0,WIDS.length-1);remote.mode=['weapon','wall','floor','ramp','hide'].includes(s.playerMode)?s.playerMode:'weapon';}const k=Math.min(1,dt*18);if(Number.isFinite(s.x))remote.x+=(s.x-remote.x)*k;if(Number.isFinite(s.y))remote.y+=(s.y-remote.y)*k;if(Number.isFinite(s.z))remote.z+=(s.z-remote.z)*k;if(Number.isFinite(s.yaw))remote.yaw+=wrap(s.yaw-remote.yaw)*k;if(Number.isFinite(s.pitch))remote.pitch+=(s.pitch-remote.pitch)*k;remote.speed=Number(s.speed)||0;remote.grounded=!!s.grounded;
     if(Number(s.emoteRev)>remote.remoteEmoteRev){remote.remoteEmoteRev=Number(s.emoteRev);if(s.emoteId&&EMOTES.some(e=>e.id===s.emoteId)){remote.activeEmote=s.emoteId;remote.emoteT=0;}else remote.activeEmote=null;}
-    if(Number(s.healthRev)>=net.lastOutgoingHitRev){remote.hp=clamp(Number(s.hp)||0,0,100);remote.shield=clamp(Number(s.shield)||0,0,50);remote.alive=!!s.alive;if(!remote.alive)remote.hp=0;}
-  }
+    if((s.healthRevs&&typeof s.healthRevs==='object'?Number(s.healthRevs[net.slot]||0):Number(s.healthRev))>=(net.outRevs[netSlotOf(remote)]||0)){remote.hp=clamp(Number(s.hp)||0,0,100);remote.shield=clamp(Number(s.shield)||0,0,50);remote.alive=!!s.alive;if(!remote.alive)remote.hp=0;}
+  }}
   if(net.role==='guest'&&net.hostPhase){state=net.hostPhase.phase;stateT=net.hostPhase.stateT;roundNo=net.hostPhase.roundNo;}
-  net.syncT+=dt;if(net.syncT>=.05){net.syncT=0;const statePayload={x:player.x,y:player.y,z:player.z,yaw:player.yaw,pitch:player.pitch,hp:player.hp,shield:player.shield,alive:player.alive,speed:player.speed,grounded:player.grounded,weaponIndex:clamp(Number.isInteger(player.wIdx)?player.wIdx:1,0,WIDS.length-1),playerMode:player.mode||'weapon',healthRev:net.lastIncomingHitRev,gen:net.gen,phase:state,stateT:stateT,roundNo:roundNo,scores:scores.slice(),cosmetic:profile.equipped,cosmetics:equippedCosmetics(),skin:profile.equippedSkin||'default',emoteId:player.activeEmote||null,emoteRev:player.emoteRev||0};const equippedCustom=(profile.customShirts||[]).find(c=>c.id===profile.equippedShirt);if(equippedCustom&&net.lastSentCustomShirtId!==equippedCustom.id){statePayload.customShirt=equippedCustom;net.lastSentCustomShirtId=equippedCustom.id;}else if(!equippedCustom){net.lastSentCustomShirtId='';}lanSend({type:'state',state:statePayload});}
+  net.syncT+=dt;if(net.syncT>=.05){net.syncT=0;const statePayload={x:player.x,y:player.y,z:player.z,yaw:player.yaw,pitch:player.pitch,hp:player.hp,shield:player.shield,alive:player.alive,speed:player.speed,grounded:player.grounded,weaponIndex:clamp(Number.isInteger(player.wIdx)?player.wIdx:1,0,WIDS.length-1),playerMode:player.mode||'weapon',healthRevs:net.inRevs,gen:net.gen,phase:state,stateT:stateT,roundNo:roundNo,scores:scores.slice(),cosmetic:profile.equipped,cosmetics:equippedCosmetics(),skin:profile.equippedSkin||'default',emoteId:player.activeEmote||null,emoteRev:player.emoteRev||0};const equippedCustom=(profile.customShirts||[]).find(c=>c.id===profile.equippedShirt);if(equippedCustom&&net.lastSentCustomShirtId!==equippedCustom.id){statePayload.customShirt=equippedCustom;net.lastSentCustomShirtId=equippedCustom.id;}else if(!equippedCustom){net.lastSentCustomShirtId='';}lanSend({type:'state',state:statePayload});}
 }
 function addNetworkPiece(data){
   const type=data.type,d=data.d,key=data.key;if(!type||!d||!key||pieceMap.has(key))return;
@@ -3666,22 +3670,22 @@ $('btPanClose').addEventListener('click',()=>{$('bluetoothPanPanel').classList.a
 $('btPanGoLan').addEventListener('click',()=>{$('bluetoothPanPanel').classList.add('hidden');$('lanPanel').classList.remove('hidden');lanStatus('Conecta ambos dispositivos mediante Bluetooth PAN, usa la IP Bluetooth que muestra la consola y crea o únete a la sala.');});
 let lanSelectedMode='1v1';
 let lanSelectedMaxPlayers=2;
-document.querySelectorAll('[data-lan-mode]').forEach(b=>b.addEventListener('click',()=>{lanSelectedMode=b.dataset.lanMode;net.requestedMode=lanSelectedMode;document.querySelectorAll('[data-lan-mode]').forEach(x=>x.classList.toggle('on',x===b));$('lanRaceTrackWrap').classList.toggle('hidden',lanSelectedMode!=='race');if(lanSelectedMode==='chameleon')lanStatus('Modo Camaleón LAN: el anfitrión será el buscador; los demás serán escondedores. Ambos equipos deben usar la misma capacidad y un servidor compatible.');else if(lanSelectedMode==='battlezone')lanStatus('Zona de batalla LAN: la sala se inicia cuando alcanza el límite elegido, si el servidor soporta salas de varios jugadores.');else if(lanSelectedMode==='1v1fps')lanStatus('Duelo FPS LAN: dos jugadores, cámara en primera persona.');else if(lanSelectedMode==='race')lanStatus('Carreras LAN: el anfitrión decide el mapa; el rival recibirá automáticamente la misma pista.');else lanStatus('Modo '+b.textContent.trim()+' seleccionado. El juego online conecta a dos jugadores.');}));
+document.querySelectorAll('[data-lan-mode]').forEach(b=>b.addEventListener('click',()=>{lanSelectedMode=b.dataset.lanMode;net.requestedMode=lanSelectedMode;document.querySelectorAll('[data-lan-mode]').forEach(x=>x.classList.toggle('on',x===b));$('lanRaceTrackWrap').classList.toggle('hidden',lanSelectedMode!=='race');if(lanSelectedMode==='ffa3')lanStatus('Todos vs todos: sala de 3 jugadores. La partida empieza cuando entren los 3; gana el primero en conseguir 3 rondas.');else if(lanSelectedMode==='chameleon')lanStatus('Modo Camaleón LAN: el anfitrión será el buscador; los demás serán escondedores. Ambos equipos deben usar la misma capacidad y un servidor compatible.');else if(lanSelectedMode==='battlezone')lanStatus('Zona de batalla LAN: la sala se inicia cuando alcanza el límite elegido, si el servidor soporta salas de varios jugadores.');else if(lanSelectedMode==='1v1fps')lanStatus('Duelo FPS LAN: dos jugadores, cámara en primera persona.');else if(lanSelectedMode==='race')lanStatus('Carreras LAN: el anfitrión decide el mapa; el rival recibirá automáticamente la misma pista.');else lanStatus('Modo '+b.textContent.trim()+' seleccionado. El juego online conecta a dos jugadores.');}));
 $('createRoomBtn').addEventListener('click',async()=>{
   await syncProfileForCurrentName();
   if(lanSelectedMode==='race'){race.selectedTrackIndex=clamp(Math.trunc(Number($('lanRaceTrack').value)||0),0,RACE_TRACKS.length-1);net.raceTrackIndex=race.selectedTrackIndex;}
   const room=$('roomIn').value.trim(),password=$('roomPass').value;
   if(!room){const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let generated='';for(let i=0;i<6;i++)generated+=chars[Math.floor(Math.random()*chars.length)];$('roomIn').value=generated;}
   const roomCode=$('roomIn').value.trim().toUpperCase();
-  net.previousMode=settings.mode;net.requestedMode=lanSelectedMode;lanSelectedMaxPlayers=2;net.requestedMaxPlayers=2;
-  lanConnect({type:'create',room:roomCode,password,name:cleanPlayerName($('nameIn').value),mode:lanSelectedMode,maxPlayers:2});
+  net.previousMode=settings.mode;net.requestedMode=lanSelectedMode;lanSelectedMaxPlayers=lanSelectedMode==='ffa3'?3:2;net.requestedMaxPlayers=lanSelectedMaxPlayers;
+  lanConnect({type:'create',room:roomCode,password,name:cleanPlayerName($('nameIn').value),mode:lanSelectedMode,maxPlayers:lanSelectedMaxPlayers});
 });
 $('joinRoomBtn').addEventListener('click',async()=>{
   await syncProfileForCurrentName();
   if(lanSelectedMode==='race'){race.selectedTrackIndex=clamp(Math.trunc(Number($('lanRaceTrack').value)||0),0,RACE_TRACKS.length-1);net.raceTrackIndex=race.selectedTrackIndex;}
   const room=$('roomIn').value.trim(),password=$('roomPass').value;
   if(!room){lanStatus('Escribe el código de sala que te compartió tu amigo.');return;}
-  net.previousMode=settings.mode;net.requestedMode=lanSelectedMode;lanSelectedMaxPlayers=2;net.requestedMaxPlayers=2;lanConnect({type:'join',room:room.toUpperCase(),password,name:cleanPlayerName($('nameIn').value),mode:lanSelectedMode});
+  net.previousMode=settings.mode;net.requestedMode=lanSelectedMode;lanSelectedMaxPlayers=lanSelectedMode==='ffa3'?3:2;net.requestedMaxPlayers=lanSelectedMaxPlayers;lanConnect({type:'join',room:room.toUpperCase(),password,name:cleanPlayerName($('nameIn').value),mode:lanSelectedMode});
 });
 $('closeLan').addEventListener('click',()=>{disconnectLan(true);$('lanPanel').classList.add('hidden');});
 $('netGoBtn').addEventListener('click',()=>{requestLandscapeMode();audio();if(AC&&AC.resume)AC.resume();startMusicIfEnabled();if(net.active&&race.active&&settings.mode==='race'){if(race.readyLocal)return;race.readyLocal=true;$('netGoBtn').disabled=true;$('netGoBtn').textContent='ESPERANDO AL RIVAL…';$('netReadySub').textContent='Listo (1/2). Esperando la confirmación del otro jugador…';const sentReady=lanSend({type:'race-ready',trackIndex:race.trackIndex});const sentFallback=lanSend({type:'race-client-ready',trackIndex:race.trackIndex});if(!sentReady&&!sentFallback){race.readyLocal=false;$('netGoBtn').disabled=false;$('netGoBtn').textContent='ESTOY LISTO PARA CORRER';$('netReadySub').textContent='No se pudo enviar la confirmación. Comprueba la conexión LAN e inténtalo de nuevo.';return;}if(net.role==='host'&&race.remoteReady)announceNetworkRaceStart();return;}$('netReady').classList.add('hidden');if(!touchCapable()&&!race.active)lockPointer();});
@@ -3718,7 +3722,7 @@ function buildTeams(){
     }
     return;
   }
-  const localTeam=net.active&&net.role==='guest'?1:0;
+  const localTeam=net.active?(net.slot||0):0;
   player=newActor(settings.name||'Jugador',localTeam,true,0);
   if(settings.mode==='battlezone'){
     if(net.active){const remote=newActor(net.peerName||'Rival',1,false,0);remote.netRemote=true;for(let i=2;i<=5;i++)newActor('Bot '+(i-1),i,false,i);}
@@ -3727,6 +3731,7 @@ function buildTeams(){
     newActor('Compañero 1',0,false,1);newActor('Compañero 2',0,false,2);for(let i=1;i<=4;i++)newActor('Enemigo '+i,1,false,i-1);
   }else if(settings.mode==='academy'){
     for(let i=1;i<=6;i++)newActor('Robot de práctica '+i,1,false,i);
+  }else if(net.active&&settings.mode==='ffa'){for(const p of net.peers){const r=newActor(p.name||'Rival',p.slot,false,0);r.netRemote=true;r.netSlot=p.slot;}
   }else if(net.active){const remote=newActor(net.peerName||'Rival',localTeam===0?1:0,false,0);remote.netRemote=true;}
   else if(settings.mode==='2v2'||settings.mode==='2v2fps'){
     newActor('Aliado',0,false,1);newActor('Rojo 1',1,false,0);newActor('Rojo 2',1,false,1);
@@ -3763,8 +3768,8 @@ function updateScoreboard(){
     return;
   }
   if(settings.mode==='ffa'){
-    const best=Math.max(0,...scores.slice(1));const vivos=actors.filter(a=>a.alive).length;
-    sb.innerHTML=`<span class="tm blue">TÚ <b>${scores[0]}</b></span><span id="roundLbl">RONDA ${roundNo} · VIVOS ${vivos}</span><span class="tm red"><b>${best}</b> MEJOR RIVAL</span>`;
+    const lt=player?player.team:0;const best=Math.max(0,...scores.filter((_,i)=>i!==lt));const vivos=actors.filter(a=>a.alive).length;
+    sb.innerHTML=`<span class="tm blue">TÚ <b>${scores[lt]}</b></span><span id="roundLbl">RONDA ${roundNo} · VIVOS ${vivos}</span><span class="tm red"><b>${best}</b> MEJOR RIVAL</span>`;
   }else sb.innerHTML=`<span class="tm blue">AZUL <b>${scores[0]}</b></span><span id="roundLbl">RONDA ${roundNo}</span><span class="tm red">ROJO <b>${scores[1]}</b></span>`;
 }
 function startRound(){
@@ -3772,7 +3777,7 @@ function startRound(){
   return startRoundCore();
 }
 function startRoundCore(){
-  if(net.active){net.lastRemoteState=null;net.hostPhase=null;net.lastOutgoingHitRev=0;net.lastIncomingHitRev=0;}
+  if(net.active){resetNetSync();}
   clearPieces();clearProjectiles();clearPickups();
   if(settings.mode==='chameleon'){clearChameleonSplashes();clearChameleonPaintStamps();chameleon.poseId=0;chooseChameleonPose(0);if(player)player.poseId=0;chameleon.elapsed=0;chameleon.hudT=0;}
   if(settings.mode==='battlezone'){battleZone.elapsed=0;battleZone.radius=battleZone.startRadius;battleZone.gasDamageT=0;battleZone.hudT=0;updateBattleZoneVisuals(true);}
@@ -3799,7 +3804,7 @@ function startRoundCore(){
     const sp=spawnList('academy');
     actors.forEach((a,i)=>{const [x,z]=sp[i%sp.length];resetActor(a,x,z,a.team===0?-Math.PI/2:Math.atan2(x-sp[0][0],z-sp[0][1]));});
   }else if(settings.mode==='ffa'){
-    const sp=spawnList('ffa').sort(()=>Math.random()-.5);actors.forEach((a,i)=>{const [x,z]=sp[i];resetActor(a,x,z,Math.atan2(x,z));});
+    const sp=spawnList('ffa');if(!net.active)sp.sort(()=>Math.random()-.5);actors.forEach((a,i)=>{const [x,z]=sp[net.active?(a.team%sp.length):i];resetActor(a,x,z,Math.atan2(x,z));});
   }else if(net.active){
     const ownX=net.role==='guest'?30:-30,enemyX=-ownX;
     resetActor(player,ownX,0,ownX<0?-Math.PI/2:Math.PI/2);
@@ -3819,7 +3824,7 @@ function startRoundCore(){
 function startMatch(){
   portalGunShotsLeft=3;clearPortalAnchor();portalGunShotPoint=null;
   scores.fill(0);roundNo=1;
-  if(net.active){net.lastRemoteState=null;net.hostPhase=null;net.lastOutgoingHitRev=0;net.lastIncomingHitRev=0;}
+  if(net.active){resetNetSync();}
   if(settings.mode==='race'){clearBattleZoneVisuals();setArena(46);startRaceMatch();return;}
   if(race.active)clearRaceWorld();
   document.body.classList.remove('race-mode');document.body.classList.toggle('chameleon-mode',settings.mode==='chameleon');document.body.classList.toggle('battlezone-mode',settings.mode==='battlezone');document.body.classList.toggle('academy-mode',settings.mode==='academy');$('touchControls').classList.remove('racing');$('chameleonTools').classList.toggle('hidden',settings.mode!=='chameleon'||(net.active&&net.role==='host'));chameleon.brushActive=false;chameleon.brushDragging=false;chameleon.brushOrbit=false;$('camoBrushToggle').classList.remove('active');$('camoBrushToggle').textContent='🖌️ Pincel (P)';
@@ -3900,7 +3905,7 @@ function finishMatch(){
   else if(settings.mode==='academy')$('endSub').textContent=`Tu puntuación: ${scores[0]} · Rondas completadas: ${roundNo} · Desafío: 6 robots`;
   else if(settings.mode==='ffa'){
     const best=scores.indexOf(Math.max(...scores));
-    $('endSub').textContent=`Ganador: ${teamName(best)} · Tus rondas ganadas: ${scores[0]}`;
+    $('endSub').textContent=`Ganador: ${teamName(best)} · Tus rondas ganadas: ${scores[localTeam]}`;
   }else $('endSub').textContent=`Resultado final: AZUL ${scores[0]} - ${scores[1]} ROJO`;
   $('end').classList.remove('hidden');$('hud').classList.add('hidden');showTouchControls(false);
   if(document.pointerLockElement)document.exitPointerLock();
