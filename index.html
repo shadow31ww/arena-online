@@ -436,7 +436,7 @@ canvas{touch-action:none}
     </div>
     <div id="raceOptions" class="hidden" style="margin:12px 0 4px;padding:14px;border:1px solid rgba(135,190,255,.28);border-radius:13px;background:rgba(0,0,0,.2);text-align:left">
       <div style="font-size:12px;font-weight:900;letter-spacing:1px;margin:5px 0 8px">🌦️ CLIMA DE LA CARRERA</div>
-      <div class="row" id="raceWeatherRow"><button type="button" class="opt" data-weather="cloudy">☁️ Nublado</button><button type="button" class="opt" data-weather="rainy">🌧️ Lluvioso</button><button type="button" class="opt on" data-weather="sunny">🌅 Soleado</button></div>
+      <div class="row" id="raceWeatherRow"><button type="button" class="opt" data-weather="cloudy">☁️ Nublado</button><button type="button" class="opt" data-weather="rainy">🌧️ Lluvioso</button><button type="button" class="opt" data-weather="foggy">🌫️ Neblina</button><button type="button" class="opt on" data-weather="sunny">🌅 Soleado</button></div>
       <div style="font-size:12px;font-weight:900;letter-spacing:1px;margin:12px 0 8px">🏁 OPONENTES</div>
       <div class="row" id="raceOpponentRow"><button type="button" class="opt" data-opponents="solo">👤 Solo</button><button type="button" class="opt on" data-opponents="bots">🤖 Contra bots</button></div>
       <div style="font-size:12px;font-weight:900;letter-spacing:1px;margin:12px 0 8px">🗺️ MAPA DE CARRERAS</div>
@@ -493,6 +493,8 @@ canvas{touch-action:none}
       <label for="lanRaceTrack">🗺️ MAPA DE CARRERAS LAN (ELIGE EL ANFITRIÓN)</label>
       <select id="lanRaceTrack" class="lan-select" aria-describedby="lanRaceTrackHelp"></select>
       <div id="lanRaceTrackHelp" class="tag" style="margin:5px 0 8px">El mapa del anfitrión se sincroniza con el otro jugador al entrar a la sala.</div>
+      <label>🌦️ CLIMA DE LA CARRERA (ELIGE EL ANFITRIÓN)</label>
+      <div class="row" id="lanWeatherRow" style="margin-top:6px"><button type="button" class="opt" data-weather="cloudy">☁️ Nublado</button><button type="button" class="opt" data-weather="rainy">🌧️ Lluvioso</button><button type="button" class="opt" data-weather="foggy">🌫️ Neblina</button><button type="button" class="opt on" data-weather="sunny">🌅 Soleado</button></div>
     </div>
     <div class="tag" style="margin:5px 0 12px">Salas online para 2 jugadores. No necesitas abrir puertos ni estar en la misma Wi-Fi.</div>
     <label>CONTRASEÑA (OPCIONAL)</label>
@@ -2734,11 +2736,14 @@ function playerShoot(w){
   if(w.proj){
     const d0=tgt.clone().sub(muzzle).normalize();randDir(d0,spread);
     spawnProjectile(p,w.proj,muzzle,d0,w);
+    // Replica visual del disparo para el otro jugador; el servidor sigue siendo quien retransmite.
+    if(net.active)lanSend({type:'shot-fx',a:{x:muzzle.x,y:muzzle.y,z:muzzle.z},b:{x:muzzle.x+d0.x*18,y:muzzle.y+d0.y*18,z:muzzle.z+d0.z*18},life:.22});
   }else{
     for(let i=0;i<w.pellets;i++){
       const dir=randDir(base.clone(),spread);
       const r=castShot(p,head,dir,w.dmg,w.head,w.range);
       tracer(muzzle,r.end,w.id==='heavy'?.32:(w.id==='sniper'?.24:.16));
+      if(net.active)lanSend({type:'shot-fx',a:{x:muzzle.x,y:muzzle.y,z:muzzle.z},b:{x:r.end.x,y:r.end.y,z:r.end.z},life:w.id==='heavy'?.32:(w.id==='sniper'?.24:.16)});
     }
   }
   sfx.shot(w.id,p.x,p.z);
@@ -3062,7 +3067,7 @@ function createBattleZoneFacade(){
   if(sign){const txt=document.createElement('canvas');txt.width=512;txt.height=96;const ctx=txt.getContext('2d');ctx.fillStyle='#263946';ctx.fillRect(0,0,512,96);ctx.fillStyle='#aaff76';ctx.font='bold 44px sans-serif';ctx.textAlign='center';ctx.fillText('ZONA DE BATALLA',256,62);const tex=new THREE.CanvasTexture(txt);const label=new THREE.Mesh(new THREE.PlaneGeometry(18,1.3),new THREE.MeshBasicMaterial({map:tex,transparent:true}));label.position.set(0,11.95,wallZ+.72);scene.add(label);worldObjs.push(label);}
 }
 
-const net={ws:null,active:false,connecting:false,role:'',room:'',seed:1,peerName:'Rival',roomMode:'1v1',requestedMode:'1v1',requestedMaxPlayers:2,roomMaxPlayers:2,roomPlayerCount:1,previousMode:null,pendingAction:null,intentionalClose:false,applyingRemote:false,syncT:0,lastRemoteState:null,hostPhase:null,lastOutgoingHitRev:0,lastIncomingHitRev:0,lastSentCustomShirtId:'',raceTrackIndex:0};
+const net={gen:0,ws:null,active:false,connecting:false,role:'',room:'',seed:1,peerName:'Rival',roomMode:'1v1',requestedMode:'1v1',requestedMaxPlayers:2,roomMaxPlayers:2,roomPlayerCount:1,previousMode:null,pendingAction:null,intentionalClose:false,applyingRemote:false,syncT:0,lastRemoteState:null,hostPhase:null,lastOutgoingHitRev:0,lastIncomingHitRev:0,lastSentCustomShirtId:'',raceTrackIndex:0};
 const race={active:false,started:false,waitingForNetworkStart:false,readyLocal:false,objects:[],cars:[],localCar:null,remoteCar:null,track:null,trackIndex:0,bombs:[],effects:[],debris:[],elapsed:0,syncT:0,aiBombT:0,resolvedBombs:new Set(),finished:false,turboHeld:false,fireHeld:false,fireCd:0,hudT:0,trackLength:0,aimX:window.innerWidth*.5,aimY:window.innerHeight*.5,raycaster:new THREE.Raycaster(),aimNdc:new THREE.Vector2(),previousFog:null,previousBackground:null,previousGroundVisible:null,previousCameraFar:null,previousSunIntensity:null,previousHemiIntensity:null,hiddenArenaObjects:[],weather:'sunny',opponents:'bots',selectedTrackIndex:0,remoteReady:false,networkStartSent:false,rainMesh:null,drifting:false,headlightsOn:false,headlights:[],rainAudio:null,engineAudio:null,weatherAudioTimer:0};
 addEventListener('mousemove',e=>{race.aimX=e.clientX;race.aimY=e.clientY;const aim=$('raceAim');if(aim){aim.style.left=e.clientX+'px';aim.style.top=e.clientY+'px';}});
 addEventListener('resize',()=>{if(!race.aimX)race.aimX=window.innerWidth*.5;if(!race.aimY)race.aimY=window.innerHeight*.5;});
@@ -3364,6 +3369,7 @@ function raceTurboEffect(car){
 function applyRaceWeather(){
   const w=race.weather||'sunny';
   if(w==='rainy'){scene.background=new THREE.Color(0x536879);scene.fog=new THREE.FogExp2(0x64798a,.032);sun.intensity=.24;const h=scene.children.find(o=>o.isHemisphereLight);if(h)h.intensity=.52;}
+  else if(w==='foggy'){scene.background=new THREE.Color(0xc4cbd0);scene.fog=new THREE.FogExp2(0xc4cbd0,.021);sun.intensity=.38;const h=scene.children.find(o=>o.isHemisphereLight);if(h)h.intensity=.78;}
   else if(w==='cloudy'){scene.background=new THREE.Color(0x9baab8);scene.fog=new THREE.FogExp2(0xb3c0ca,.00235);sun.intensity=.48;const h=scene.children.find(o=>o.isHemisphereLight);if(h)h.intensity=.66;}
   else {scene.background=new THREE.Color(0xffb779);scene.fog=new THREE.Fog(0xffc28c,420,1900);sun.intensity=1.05;const h=scene.children.find(o=>o.isHemisphereLight);if(h)h.intensity=1.0;}
   if(w==='rainy'){
@@ -3429,7 +3435,15 @@ function startNetworkRaceCountdown(){
 }
 function announceNetworkRaceStart(){
   if(!race.active||!race.waitingForNetworkStart||race.networkStartSent||net.role!=='host')return;
-  race.networkStartSent=true;lanSend({type:'race-start',trackIndex:race.trackIndex});startNetworkRaceCountdown();
+  race.networkStartSent=true;lanSend({type:'race-start',trackIndex:race.trackIndex,weather:race.weather||'sunny'});startNetworkRaceCountdown();
+}
+function applyNetworkRaceWeather(weather){
+  if(!['sunny','cloudy','rainy','foggy'].includes(weather))return;
+  race.weather=weather;
+  // Reemplaza el efecto de lluvia anterior para evitar duplicarlo al sincronizar.
+  if(race.rainMesh){scene.remove(race.rainMesh);race.rainMesh.geometry?.dispose();race.rainMesh.material?.dispose();race.rainMesh=null;}
+  applyRaceWeather();startRaceAudio();
+  document.querySelectorAll('#raceWeatherRow [data-weather],#lanWeatherRow [data-weather]').forEach(b=>b.classList.toggle('on',b.dataset.weather===weather));
 }
 function applyNetworkRaceTrack(trackIndex){
   const idx=clamp(Math.trunc(Number(trackIndex)||0),0,RACE_TRACKS.length-1);net.raceTrackIndex=idx;race.selectedTrackIndex=idx;
@@ -3541,7 +3555,7 @@ function lanMessage(d){
   }else if(d.type==='waiting'){
     net.roomPlayerCount=clamp(Number(d.playerCount)||1,1,5);net.roomMaxPlayers=clamp(Number(d.maxPlayers)||net.roomMaxPlayers||2,1,5);if(d.role)net.role=d.role;if(d.room)net.room=d.room;if(d.seed)net.seed=d.seed;if(d.mode)net.roomMode=d.mode;lanStatus((d.message||'Esperando a que se llene la sala…')+' ('+net.roomPlayerCount+'/'+net.roomMaxPlayers+')');
   }else if(d.type==='ready'){
-    net.active=true;net.role=d.role;net.room=d.room;net.seed=d.seed||1;net.roomMode=d.mode||d.roomMode||net.requestedMode||'1v1';net.roomMaxPlayers=clamp(Number(d.maxPlayers)||net.roomMaxPlayers||net.requestedMaxPlayers||2,1,5);net.roomPlayerCount=clamp(Number(d.playerCount)||net.roomMaxPlayers,1,5);net.peerName=d.peerName||'Rival';net.lastRemoteState=null;net.hostPhase=null;net.lastOutgoingHitRev=0;net.lastIncomingHitRev=0;net.lastSentCustomShirtId='';
+    net.gen=0;net.active=true;net.role=d.role;net.room=d.room;net.seed=d.seed||1;net.roomMode=d.mode||d.roomMode||net.requestedMode||'1v1';net.roomMaxPlayers=clamp(Number(d.maxPlayers)||net.roomMaxPlayers||net.requestedMaxPlayers||2,1,5);net.roomPlayerCount=clamp(Number(d.playerCount)||net.roomMaxPlayers,1,5);net.peerName=d.peerName||'Rival';net.lastRemoteState=null;net.hostPhase=null;net.lastOutgoingHitRev=0;net.lastIncomingHitRev=0;net.lastSentCustomShirtId='';
     startNetworkMatch();
   }else if(d.type==='error'){
     $('againBtn').disabled=false;$('againBtn').textContent='JUGAR DE NUEVO';
@@ -3563,7 +3577,7 @@ function lanMessage(d){
   }else if(d.type==='race-hit'){
     if(race.active&&d.targetRole){const target=race.cars.find(c=>c.role===d.targetRole);const source=race.cars.find(c=>c.role===d.sourceRole)||null;if(target&&!target.destroyed)raceDamageCar(target,Number(d.damage)||8,source,false);}
   }else if(d.type==='race-start'){
-    if(race.active){if(Number.isInteger(d.trackIndex)&&d.trackIndex>=0&&d.trackIndex<RACE_TRACKS.length)applyNetworkRaceTrack(d.trackIndex);startNetworkRaceCountdown();}
+    if(race.active){if(Number.isInteger(d.trackIndex)&&d.trackIndex>=0&&d.trackIndex<RACE_TRACKS.length)applyNetworkRaceTrack(d.trackIndex);if(net.role!=='host'&&d.weather)applyNetworkRaceWeather(d.weather);startNetworkRaceCountdown();}
   }else if(d.type==='race-ready-wait'){
     if(race.active){race.readyLocal=true;$('netGoBtn').disabled=true;$('netGoBtn').textContent='ESPERANDO AL RIVAL…';$('netReadySub').textContent='Listo. Esperando a que el otro jugador confirme para empezar juntos.';}
   }else if(d.type==='state'){
@@ -3571,8 +3585,13 @@ function lanMessage(d){
       const cs=d.state.customShirt;
       if(/^customshirt_[a-z0-9_-]{5,70}$/i.test(String(cs.id||''))&&typeof cs.image==='string'&&cs.image.startsWith('data:image/jpeg;base64,')&&cs.image.length<=350000){remoteCustomShirts.set(String(cs.id),{id:String(cs.id),name:String(cs.name||'Camisa LAN').slice(0,28),image:cs.image});}
     }
+    if(d.state&&d.state.gen!==undefined&&d.state.gen!==net.gen){/* estado de una partida anterior: se ignora */}else{
     net.lastRemoteState=d.state;
     if(net.role==='guest'&&d.state&&d.state.phase){net.hostPhase={phase:d.state.phase,stateT:d.state.stateT||0,roundNo:d.state.roundNo||1};if(Array.isArray(d.state.scores)&&d.state.scores.length===scores.length){scores=d.state.scores.slice(0,scores.length);updateScoreboard();}}
+    }
+  }else if(d.type==='shot-fx'){
+    // Efectos de bala del rival: solo visuales, el daño se sincroniza por el evento hit.
+    if(net.active&&d.a&&d.b){const a=new THREE.Vector3(Number(d.a.x)||0,Number(d.a.y)||0,Number(d.a.z)||0),b=new THREE.Vector3(Number(d.b.x)||0,Number(d.b.y)||0,Number(d.b.z)||0);tracer(a,b,clamp(Number(d.life)||.16,.08,.4));}
   }else if(d.type==='hit'){
     if(!player||!net.active||d.rev<=net.lastIncomingHitRev)return;
     net.lastIncomingHitRev=d.rev;
@@ -3593,7 +3612,7 @@ function lanMessage(d){
       if(net.lastRemoteState)net.lastRemoteState={...net.lastRemoteState,weaponIndex:remote.wIdx,playerMode:remote.mode};
     }
   }else if(d.type==='rematch-ready'){
-    net.seed=d.seed||net.seed;net.lastRemoteState=null;net.hostPhase=null;net.lastOutgoingHitRev=0;net.lastIncomingHitRev=0;paused=false;
+    net.gen=(net.gen||0)+1;scores.fill(0);roundNo=1;net.seed=d.seed||net.seed;net.lastRemoteState=null;net.hostPhase=null;net.lastOutgoingHitRev=0;net.lastIncomingHitRev=0;paused=false;
     $('againBtn').disabled=false;$('againBtn').textContent='JUGAR DE NUEVO';$('end').classList.add('hidden');$('hud').classList.remove('hidden');audio();if(AC&&AC.resume)AC.resume();startMatch();
     $('netReadySub').textContent='Rival: '+net.peerName+'. Nueva partida lista.';$('netReady').classList.remove('hidden');
   }else if(d.type==='peer-left'){
@@ -3634,7 +3653,7 @@ function netUpdate(dt){
     if(Number(s.healthRev)>=net.lastOutgoingHitRev){remote.hp=clamp(Number(s.hp)||0,0,100);remote.shield=clamp(Number(s.shield)||0,0,50);remote.alive=!!s.alive;if(!remote.alive)remote.hp=0;}
   }
   if(net.role==='guest'&&net.hostPhase){state=net.hostPhase.phase;stateT=net.hostPhase.stateT;roundNo=net.hostPhase.roundNo;}
-  net.syncT+=dt;if(net.syncT>=.05){net.syncT=0;const statePayload={x:player.x,y:player.y,z:player.z,yaw:player.yaw,pitch:player.pitch,hp:player.hp,shield:player.shield,alive:player.alive,speed:player.speed,grounded:player.grounded,weaponIndex:clamp(Number.isInteger(player.wIdx)?player.wIdx:1,0,WIDS.length-1),playerMode:player.mode||'weapon',healthRev:net.lastIncomingHitRev,phase:state,stateT:stateT,roundNo:roundNo,scores:scores.slice(),cosmetic:profile.equipped,cosmetics:equippedCosmetics(),skin:profile.equippedSkin||'default',emoteId:player.activeEmote||null,emoteRev:player.emoteRev||0};const equippedCustom=(profile.customShirts||[]).find(c=>c.id===profile.equippedShirt);if(equippedCustom&&net.lastSentCustomShirtId!==equippedCustom.id){statePayload.customShirt=equippedCustom;net.lastSentCustomShirtId=equippedCustom.id;}else if(!equippedCustom){net.lastSentCustomShirtId='';}lanSend({type:'state',state:statePayload});}
+  net.syncT+=dt;if(net.syncT>=.05){net.syncT=0;const statePayload={x:player.x,y:player.y,z:player.z,yaw:player.yaw,pitch:player.pitch,hp:player.hp,shield:player.shield,alive:player.alive,speed:player.speed,grounded:player.grounded,weaponIndex:clamp(Number.isInteger(player.wIdx)?player.wIdx:1,0,WIDS.length-1),playerMode:player.mode||'weapon',healthRev:net.lastIncomingHitRev,gen:net.gen,phase:state,stateT:stateT,roundNo:roundNo,scores:scores.slice(),cosmetic:profile.equipped,cosmetics:equippedCosmetics(),skin:profile.equippedSkin||'default',emoteId:player.activeEmote||null,emoteRev:player.emoteRev||0};const equippedCustom=(profile.customShirts||[]).find(c=>c.id===profile.equippedShirt);if(equippedCustom&&net.lastSentCustomShirtId!==equippedCustom.id){statePayload.customShirt=equippedCustom;net.lastSentCustomShirtId=equippedCustom.id;}else if(!equippedCustom){net.lastSentCustomShirtId='';}lanSend({type:'state',state:statePayload});}
 }
 function addNetworkPiece(data){
   const type=data.type,d=data.d,key=data.key;if(!type||!d||!key||pieceMap.has(key))return;
@@ -4290,7 +4309,7 @@ document.querySelectorAll('#modes .mcard').forEach(b=>b.addEventListener('click'
   setMode(b.dataset.v);
   if(!['chameleon','race'].includes(b.dataset.v))$('modes').classList.add('hidden');
 }));
-document.querySelectorAll('#raceWeatherRow [data-weather]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('#raceWeatherRow .opt').forEach(x=>x.classList.remove('on'));b.classList.add('on');race.weather=b.dataset.weather;}));
+document.querySelectorAll('#raceWeatherRow [data-weather],#lanWeatherRow [data-weather]').forEach(b=>b.addEventListener('click',()=>{race.weather=b.dataset.weather;document.querySelectorAll('#raceWeatherRow [data-weather],#lanWeatherRow [data-weather]').forEach(x=>x.classList.toggle('on',x.dataset.weather===race.weather));}));
 document.querySelectorAll('#raceOpponentRow [data-opponents]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('#raceOpponentRow .opt').forEach(x=>x.classList.remove('on'));b.classList.add('on');race.opponents=b.dataset.opponents;}));
 $('raceTrackSelect').addEventListener('change',()=>{race.selectedTrackIndex=clamp(Math.trunc(Number($('raceTrackSelect').value)||0),0,RACE_TRACKS.length-1);});
 $('lanRaceTrack').addEventListener('change',()=>{race.selectedTrackIndex=clamp(Math.trunc(Number($('lanRaceTrack').value)||0),0,RACE_TRACKS.length-1);net.raceTrackIndex=race.selectedTrackIndex;});
