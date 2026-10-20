@@ -2753,8 +2753,8 @@ function playerShoot(w){
     }
   }
   sfx.shot(w.id,p.x,p.z);
-  p.pitch=clamp(p.pitch+w.kick,-1.55,1.55);p.yaw+=(Math.random()-.5)*w.kick*.6;
-  p.recoil=1;vmKick=1;
+  if(!adminActive()){p.pitch=clamp(p.pitch+w.kick,-1.55,1.55);p.yaw+=(Math.random()-.5)*w.kick*.6;}
+  p.recoil=adminActive()?0:1;vmKick=adminActive()?0:1;
   if(p.ammoArr[p.wIdx]<=0)startReload();
 }
 function playerSwing(){
