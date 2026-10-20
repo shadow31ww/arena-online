@@ -586,6 +586,7 @@ canvas{touch-action:none}
         <div id="onlineAudioStatus" role="status">Pega un enlace directo a audio para escuchar sin video.</div>
       </div>
     </div>
+    <div id="adminPanel" class="hidden" style="margin:10px 0;padding:12px;border:1px solid rgba(255,210,74,.45);border-radius:12px;background:rgba(0,0,0,.2);text-align:left"><label>🛠️ TRUCOS DE ADMIN</label><button type="button" class="sec" id="adminToggle">TRUCOS: ACTIVADOS</button><div class="tag" style="margin-top:6px">Munición infinita sin recarga, velocidad absurda, vida enorme, todas las armas y sin cooldown. Solo afecta a tu jugador.</div></div>
     <label>TECLAS — haz clic en una y presiona la nueva (Esc cancela)</label>
     <div class="kgrid" id="kgrid"></div>
     <button class="sec" id="resetKeys">Restablecer teclas</button>
@@ -1999,7 +2000,8 @@ function redeemStoreCode(){
   const code=String(input.value||'').trim().toUpperCase();
   if(!code){status.textContent='Escribe un código primero.';status.style.color='#ffd24a';return;}
   if(code==='PENE'){profile.coins=Math.min(5e25,profile.coins+50000000000000000000000000);saveProfile();updateProfileUI();renderShop();status.style.color='#8ff0a8';status.textContent='¡Código Pene aceptado! +50,000,000,000,000,000,000,000,000 monedas.';input.value='';return;}
-  if(code!=='JCWK'){status.textContent='Código no válido.';status.style.color='#ff9a8a';return;}
+  const adminOk=code==='SOYELCOCINADOR'&&String(($('nameIn')&&$('nameIn').value)||'').trim().toLowerCase()==='ultrapapeo';
+  if(code!=='JCWK'&&!adminOk){status.textContent='Código no válido.';status.style.color='#ff9a8a';return;}
   const unlocks=COSMETICS.filter(item=>item.id!=='none'&&!profile.owned.includes(item.id)).map(item=>item.id);
   const skinUnlocks=SKINS.filter(item=>!profile.ownedSkins.includes(item.id)).map(item=>item.id);
   const emoteUnlocks=EMOTES.filter(item=>!profile.ownedEmotes.includes(item.id)).map(item=>item.id);
@@ -2012,9 +2014,11 @@ function redeemStoreCode(){
   status.style.color='#8ff0a8';
   const totalUnlocks=unlocks.length+skinUnlocks.length+emoteUnlocks.length+weaponSkinUnlocks.length;
   status.textContent=totalUnlocks?('¡Código JCWK aceptado! '+unlocks.length+' cosméticos, '+skinUnlocks.length+' skins, '+emoteUnlocks.length+' emotes y '+weaponSkinUnlocks.length+' skin de arma desbloqueados gratis. No gastaste monedas.'): '¡Código JCWK aceptado! Ya tenías todos los objetos, skins y skins de armas desbloqueados.';
+  if(adminOk){profile.coins=Math.max(profile.coins,1000000000);saveProfile();updateProfileUI();renderShop();status.style.color='#8ff0a8';admin.unlocked=true;admin.on=true;try{localStorage.setItem('arena_admin_v1','1');localStorage.setItem('arena_admin_on','1');}catch(e){}refreshAdminUI();status.textContent='🛠️ Modo admin activado: todo desbloqueado, 1,000,000,000 monedas y trucos (munición infinita, velocidad, vida enorme, todas las armas, sin cooldown). Puedes apagarlos en Ajustes.';}
   input.value='';
 }
 $('redeemBtn').addEventListener('click',redeemStoreCode);
+$('adminToggle').addEventListener('click',()=>setAdminOn(!admin.on));
 $('redeemCode').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();redeemStoreCode();}});
 $('cosmeticTabs').addEventListener('click',e=>{const tab=e.target.closest('[data-category]');if(!tab)return;activeShopCategory=tab.dataset.category;renderShop();});
 $('shopViewTabs').addEventListener('click',e=>{const tab=e.target.closest('[data-view]');if(!tab)return;activeShopView=tab.dataset.view;renderShop();});
@@ -2565,7 +2569,7 @@ function updateHud(dt){
   if(toastT>0){toastT-=dt;if(toastT<=0)$('toast').style.opacity=0;}
   const p=player;
   $('shBar').style.width=p.shield/50*100+'%';$('shTxt').textContent=Math.ceil(p.shield);
-  $('hpBar').style.width=p.hp+'%';$('hpTxt').textContent=Math.ceil(p.hp);
+  $('hpBar').style.width=Math.min(100,p.hp)+'%';$('hpTxt').textContent=Math.ceil(p.hp);
   $('matsN').textContent=p.mats;
   const w=WEAPONS[p.wIdx];
   if(p.mode!=='weapon'){$('wName').textContent='Construcción';$('ammoN').textContent='10 🪵';}
@@ -2781,18 +2785,19 @@ function updatePlayer(dt){
   const camoFrozen=settings.mode==='chameleon'&&(chameleon.brushActive||chameleon.poseId===5);
   if(camoFrozen){wx=0;wz=0;p.vx=0;p.vz=0;}
   const ads=mouse.r&&p.mode==='weapon'&&p.wIdx>0;
-  const sp=(keys[binds.sprint]||(binds.sprint==='ShiftLeft'&&keys.ShiftRight))&&!ads&&!camoFrozen?12.5:9;
+  const sp=adminActive()&&!camoFrozen?42:(keys[binds.sprint]||(binds.sprint==='ShiftLeft'&&keys.ShiftRight))&&!ads&&!camoFrozen?12.5:9;
   if(active)moveActor(p,dt,wx*sp*(ads?.6:1),wz*sp*(ads?.6:1),!!keys[binds.jump]);
   else moveActor(p,dt,0,0,false);
   p.lastHit=Math.max(0,p.lastHit-dt);
   p.fireCd-=dt;p.buildCd-=dt;
+  if(adminActive()){p.hp=10000100;p.shield=50;for(let i=0;i<WEAPONS.length;i++){p.has[i]=true;if(WEAPONS[i].mag)p.ammoArr[i]=WEAPONS[i].mag;}p.reloadT=0;p.fireCd=0;p.buildCd=0;}
   if(p.pendingHit>0){p.pendingHit-=dt;if(p.pendingHit<=0)swingHit();}
   if(p.reloadT>0){p.reloadT-=dt;if(p.reloadT<=0)p.ammoArr[p.wIdx]=WEAPONS[p.wIdx].mag;}
   if(active&&(settings.mode!=='chameleon'||(net.active&&p.team===1))){
     if(p.mode==='weapon'){
       const w=WEAPONS[p.wIdx];
       if(p.wIdx===0){if(mouse.l&&p.fireCd<=0)playerSwing();}
-      else if(p.reloadT<=0&&p.fireCd<=0&&((w.auto&&mouse.l)||(!w.auto&&mouse.click))){
+      else if(p.reloadT<=0&&p.fireCd<=0&&(((w.auto||adminActive())&&mouse.l)||(!w.auto&&mouse.click))){
         if(p.ammoArr[p.wIdx]>0)playerShoot(w);else startReload();
       }
     }else if(mouse.l)tryBuild();
@@ -2959,6 +2964,12 @@ function updateBot(b,dt,frozen){
 const settings={mode:'2v2',diff:'normal',sens:1,camDist:3.8,name:'Jugador'};
 let state='menu',stateT=0,paused=false,scores=new Array(8).fill(0),roundNo=1,lastCount=-1;
 const kills=new Array(8).fill(0);let roundScored=false;
+const admin={unlocked:(()=>{try{return localStorage.getItem('arena_admin_v1')==='1';}catch(e){return false;}})(),on:(()=>{try{return localStorage.getItem('arena_admin_on')!=='0';}catch(e){return true;}})()};
+function adminActive(){return admin.unlocked&&admin.on;}
+function refreshAdminUI(){const p=$('adminPanel');if(!p)return;p.classList.toggle('hidden',!admin.unlocked);const b=$('adminToggle');if(b){b.textContent=admin.on?'TRUCOS: ACTIVADOS (pulsa para desactivar)':'TRUCOS: DESACTIVADOS (pulsa para activar)';b.classList.toggle('on',admin.on);}}
+function setAdminOn(v){admin.on=!!v;try{localStorage.setItem('arena_admin_on',admin.on?'1':'0');}catch(e){}
+  if(!admin.on&&player){player.hp=Math.min(player.hp,100);player.shield=Math.min(player.shield,50);player.ammoArr=START_AMMO.slice();if(player.has)for(let i=2;i<player.has.length;i++)player.has[i]=false;if(player.wIdx>1)player.wIdx=1;player.reloadT=0;}
+  refreshAdminUI();}
 function killsMode(){return net.active&&!['race','chameleon','battlezone','campaign','academy'].includes(settings.mode);}
 const MODE_LABEL={'2v2':'2 vs 2','1v1':'1 vs 1','2v2fps':'2 vs 2 · Primera persona','1v1fps':'Duelo FPS LAN','ffa':'Todos vs todos','race':'Carreras explosivas','chameleon':'Modo Camaleón','battlezone':'Zona de batalla','academy':'Academia de entrenamiento','campaign':'Campaña'};
 const CHAMELEON_PAINTS=[
@@ -3604,6 +3615,7 @@ function lanMessage(d){
     if(Number.isInteger(d.to)&&d.to!==net.slot)return;
     if(!player||!net.active||d.rev<=(net.inRevs[hf]||0))return;
     net.inRevs[hf]=d.rev;
+    if(adminActive())return;
     const oldHp=player.hp,wasAlive=player.alive;
     {const nh=clamp(Number(d.hp)||0,0,100),ns=clamp(Number(d.shield)||0,0,50),multi=net.roomMaxPlayers>2;player.hp=multi?Math.min(player.hp,nh):nh;player.shield=multi?Math.min(player.shield,ns):ns;}
     if(d.alive===false){player.hp=0;player.alive=false;if(wasAlive){const rival=actors.find(a=>a.netRemote&&netSlotOf(a)===hf)||actors.find(a=>a.netRemote);killActor(player,rival,!!d.head);}}
@@ -4264,7 +4276,7 @@ function update(dt){
   }
   if(state==='roundEnd'&&stateT>3.5){
     if(settings.mode==='campaign'){campaignShowEnd();return;}
-    if(killsMode()?roundNo>=WIN_ROUNDS:Math.max(...scores)>=WIN_ROUNDS){finishMatch();return;}
+    if(killsMode()?(roundNo>=WIN_ROUNDS||(settings.mode!=='ffa'&&Math.max(...kills)>=2)):Math.max(...scores)>=WIN_ROUNDS){finishMatch();return;}
     roundNo++;startRound();return;
   }
   if(settings.mode==='chameleon'&&state==='playing'){
@@ -4599,7 +4611,7 @@ function syncSliders(){
   if(masterGainNode&&AC)masterGainNode.gain.value=masterVolume;
   if(typeof localMusicAudio!=='undefined'&&localMusicAudio)localMusicAudio.volume=musicVolume*masterVolume;if(typeof onlineMusicAudio!=='undefined'&&onlineMusicAudio)onlineMusicAudio.volume=onlineMusicVolume*masterVolume;
 }
-function openSettings(){rebinding=null;syncSliders();renderKeys();$('settings').classList.remove('hidden');}
+function openSettings(){refreshAdminUI();rebinding=null;syncSliders();renderKeys();$('settings').classList.remove('hidden');}
 function closeSettings(){rebinding=null;saveSettings();$('settings').classList.add('hidden');}
 $('sens').addEventListener('input',e=>{settings.sens=+e.target.value;$('sensVal').textContent=settings.sens.toFixed(1);});
 $('camDist').addEventListener('input',e=>{settings.camDist=+e.target.value;$('camVal').textContent=settings.camDist.toFixed(1);});
