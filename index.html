@@ -3900,6 +3900,9 @@ function endRound(winner){
   mouse.r=false;
 }
 function checkRoundEnd(){
+  // En multijugador online, el anfitrión es la única autoridad que decide cuándo termina una ronda.
+  // El invitado puede recibir estados remotos con retraso; no debe declarar victorias por su cuenta.
+  if(net.active&&net.role==='guest')return;
   if(settings.mode==='chameleon'){
     const hiders=actors.filter(a=>a.team===0&&a.alive),seekers=actors.filter(a=>a.team===1&&a.alive);
     if(!hiders.length){endRound(1);return;}
@@ -4275,6 +4278,9 @@ function update(dt){
     if(stateT>=3){state='playing';stateT=0;setMsg('¡A PELEAR!','',1);sfx.beep(900);}
   }
   if(state==='roundEnd'&&stateT>3.5){
+    // El invitado sigue la fase y el número de ronda enviados por el anfitrión.
+    // Evita que ambos clientes inicien rondas/terminen la partida por separado.
+    if(net.active&&net.role==='guest')return;
     if(settings.mode==='campaign'){campaignShowEnd();return;}
     if(killsMode()?(roundNo>=WIN_ROUNDS||(settings.mode!=='ffa'&&Math.max(...kills)>=2)):Math.max(...scores)>=WIN_ROUNDS){finishMatch();return;}
     roundNo++;startRound();return;
