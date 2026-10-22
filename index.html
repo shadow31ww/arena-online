@@ -288,7 +288,21 @@ canvas{touch-action:none}
 #onlineAudioStatus{font-size:12px;line-height:1.4;min-height:18px;opacity:.9;margin-top:7px;overflow-wrap:anywhere}
 @media(max-width:520px){#youtubeMusicDock{right:6px;bottom:6px;width:min(360px,calc(100vw - 12px));padding:6px}#youtubeMusicDock .yt-dock-head{font-size:10px}#youtubeMusicDock .yt-stop,#youtubeMusicDock .yt-window{padding:6px;font-size:10px}#youtubeMusicFrame{height:200px}}
 
-/* Oculta los mensajes de carrera tras cinco segundos; conserva nitro y ametralladora. */\nbody.race-ui-clean #center-msg,body.race-ui-clean #sub-msg,body.race-ui-clean #toast{opacity:0!important;visibility:hidden!important;pointer-events:none!important;}\nbody.race-ui-clean #raceTouchActions .race-bomb{display:none!important;}\n</style>
+/* Oculta los mensajes de carrera tras cinco segundos; conserva nitro y ametralladora. */\nbody.race-ui-clean #center-msg,body.race-ui-clean #sub-msg,body.race-ui-clean #toast{opacity:0!important;visibility:hidden!important;pointer-events:none!important;}\nbody.race-ui-clean #raceTouchActions .race-bomb{display:none!important;}\n
+/* Modo cine online: sin HUD de combate y controles propios de reproducción. */
+body.cinema-mode #alive,body.cinema-mode #killfeed,body.cinema-mode #crosshair,body.cinema-mode #weaponReticlePng,body.cinema-mode #hitmarker,body.cinema-mode #criticalPop,body.cinema-mode #vignette,body.cinema-mode #bottom,body.cinema-mode #mats,body.cinema-mode #ammo,body.cinema-mode #scope{display:none!important}
+body.cinema-mode #scoreboard{top:12px;background:rgba(8,12,25,.78);font-size:14px}
+#cinemaControls{position:fixed;z-index:25;left:50%;bottom:16px;transform:translateX(-50%);display:flex;align-items:center;gap:10px;max-width:calc(100vw - 20px);padding:10px 14px;border:1px solid rgba(255,255,255,.25);border-radius:12px;background:rgba(5,12,24,.88);box-shadow:0 8px 24px #0006;color:#fff;pointer-events:auto}
+#cinemaControls.hidden{display:none!important}
+#cinemaPlayBtn{padding:9px 15px;border:1px solid #a8d5ff;border-radius:9px;background:#2f8cff;color:#fff;font-weight:900;cursor:pointer}
+#cinemaStatus{font-size:12px;line-height:1.35;max-width:min(48vw,380px);overflow-wrap:anywhere}
+#cinemaUploadBox{margin:12px 0;padding:13px;border:1px solid rgba(126,239,184,.3);border-radius:12px;background:rgba(18,66,49,.2);text-align:left}
+#cinemaUploadBox p{font-size:12px;line-height:1.45;opacity:.82;margin:5px 0 9px}
+#cinemaFile{display:block;width:100%;color:#fff;font-size:13px;user-select:text}
+#cinemaUploadStatus{font-size:12px;line-height:1.4;min-height:18px;margin-top:7px;overflow-wrap:anywhere}
+body.cinema-mode #touchControls #standardTouchActions [data-touch-action="fire"],body.cinema-mode #touchControls #standardTouchActions [data-touch-action="aim"],body.cinema-mode #touchControls #standardTouchActions [data-touch-action="reload"],body.cinema-mode #touchControls #standardTouchActions [data-touch-action="weapon"],body.cinema-mode #touchControls #standardTouchActions [data-touch-build]{display:none!important}
+
+</style>
 </head>
 <body>
 
@@ -316,7 +330,8 @@ canvas{touch-action:none}
     </div>
     <div id="slots"></div>
   </div>
-  <div id="touchControls" aria-label="Controles táctiles">
+  <div id="cinemaControls" class="hidden"><button id="cinemaPlayBtn" type="button">▶ REPRODUCIR</button><div id="cinemaStatus">Esperando la foto o el vídeo del anfitrión…</div></div>
+<div id="touchControls" aria-label="Controles táctiles">
     <div id="touchLookHint">DESLIZA PARA MIRAR</div>
     <div id="touchJoystick" aria-label="Joystick de movimiento"><div id="touchStick"></div></div>
     <div id="touchActions">
@@ -488,7 +503,8 @@ canvas{touch-action:none}
     <label>CÓDIGO DE SALA</label>
     <input type="text" id="roomIn" maxlength="12" placeholder="Al crear se genera automáticamente">
     <label>MODO DE LA SALA</label>
-    <div class="row" id="lanModeRow"><button type="button" class="opt on" data-lan-mode="1v1">⚔️ COMBATE 1v1</button><button type="button" class="opt" data-lan-mode="1v1fps">🎯 DUELO FPS</button><button type="button" class="opt" data-lan-mode="race">🏁 CARRERAS</button><button type="button" class="opt" data-lan-mode="chameleon">🦎 CAMALEÓN</button><button type="button" class="opt" data-lan-mode="battlezone">☣️ ZONA DE BATALLA</button><button type="button" class="opt" data-lan-mode="ffa3">🔫 TODOS VS TODOS (3)</button></div>
+    <div class="row" id="lanModeRow"><button type="button" class="opt on" data-lan-mode="1v1">⚔️ COMBATE 1v1</button><button type="button" class="opt" data-lan-mode="1v1fps">🎯 DUELO FPS</button><button type="button" class="opt" data-lan-mode="race">🏁 CARRERAS</button><button type="button" class="opt" data-lan-mode="chameleon">🦎 CAMALEÓN</button><button type="button" class="opt" data-lan-mode="battlezone">☣️ ZONA DE BATALLA</button><button type="button" class="opt" data-lan-mode="ffa3">🔫 TODOS VS TODOS (3)</button><button type="button" class="opt" data-lan-mode="cinema">🎬 CINE MULTIJUGADOR</button></div>
+    <div id="cinemaUploadBox" class="hidden"><label for="cinemaFile">🎞️ FOTO O VÍDEO PARA LA PANTALLA GIGANTE (ANFITRIÓN)</label><p>Elige una imagen o vídeo pequeño. Se enviará al otro jugador cuando la sala se conecte. Límite: 8 MB. No hay armas en este modo.</p><input id="cinemaFile" type="file" accept="image/*,video/*"><div id="cinemaUploadStatus">Selecciona una foto o vídeo antes de crear la sala.</div></div>
     <div id="lanRaceTrackWrap" class="hidden" style="margin-top:12px">
       <label for="lanRaceTrack">🗺️ MAPA DE CARRERAS LAN (ELIGE EL ANFITRIÓN)</label>
       <select id="lanRaceTrack" class="lan-select" aria-describedby="lanRaceTrackHelp"></select>
@@ -810,7 +826,37 @@ function createAcademyMap(){
     const stripe=new THREE.Mesh(new THREE.BoxGeometry(1.6,.025,.18),new THREE.MeshBasicMaterial({color:0x39a9d0}));stripe.position.set(0,.025,z);scene.add(stripe);worldObjs.push(stripe);
   }
 }
+function createCinemaMap(){
+  scene.background.setHex(0x050812);scene.fog.color.setHex(0x050812);scene.fog.near=80;scene.fog.far=180;
+  ground.material.color.setHex(0x171b28);ground.material.map=null;ground.material.needsUpdate=true;
+  const mat=c=>new THREE.MeshLambertMaterial({color:c});
+  function box(w,h,d,x,y,z,color,solid=false){
+    const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat(color));m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;scene.add(m);worldObjs.push(m);if(solid)solidMeshes.push(m);return m;
+  }
+  box(100,1,90,0,-.55,0,0x101522);
+  box(100,18,1,0,8,-45,0x171c2c,true);box(1,18,90,-50,8,0,0x151a28,true);box(1,18,90,50,8,0,0x151a28,true);box(100,18,1,0,8,45,0x111725,true);box(100,1,90,0,18,0,0x0b0f19);
+  box(46,25,1.1,0,13.5,-39.2,0x30384c);box(43.5,22.5,.35,0,13.5,-38.45,0x020307);
+  cinemaScreenMesh=new THREE.Mesh(new THREE.PlaneGeometry(42,21),new THREE.MeshBasicMaterial({color:0x020307,side:THREE.DoubleSide}));
+  cinemaScreenMesh.position.set(0,13.5,-38.22);scene.add(cinemaScreenMesh);worldObjs.push(cinemaScreenMesh);
+  for(const side of [-1,1])for(let z=-30;z<=34;z+=8){
+    const lamp=box(.18,.22,1.3,side*48.9,2.1,z,0x36b9ff);lamp.material=new THREE.MeshBasicMaterial({color:0x36b9ff});
+    const glow=new THREE.PointLight(0x247cff,.45,9);glow.position.set(side*46,2.8,z);scene.add(glow);worldObjs.push(glow);
+  }
+  const seatM=[0x8d233b,0x9d2945,0x6f1c35].map(c=>mat(c)),legM=mat(0x272d3a);
+  for(let row=0;row<8;row++){
+    const z=-22+row*7.2,y=.35+row*.34;
+    for(let col=-5;col<=5;col++){
+      if(col===0)continue;const x=col*6.8,sm=seatM[(row+col+20)%seatM.length];
+      const base=new THREE.Mesh(new THREE.BoxGeometry(3.6,.65,3.1),sm);base.position.set(x,y,z);base.castShadow=true;base.receiveShadow=true;scene.add(base);worldObjs.push(base);
+      const back=new THREE.Mesh(new THREE.BoxGeometry(3.6,2.2,.65),sm);back.position.set(x,y+1.25,z+1.05);back.castShadow=true;scene.add(back);worldObjs.push(back);
+      const foot=new THREE.Mesh(new THREE.BoxGeometry(2.6,.35,1.5),legM);foot.position.set(x,y-.48,z);scene.add(foot);worldObjs.push(foot);
+    }
+  }
+  for(let row=0;row<8;row++){const strip=new THREE.Mesh(new THREE.BoxGeometry(100,.06,.2),new THREE.MeshBasicMaterial({color:row%2?0x2453a0:0x1d7d99}));strip.position.set(0,.08+row*.34,-25+row*7.2);scene.add(strip);worldObjs.push(strip);}
+  if(cinemaMediaData)applyCinemaMedia(cinemaMediaData,cinemaMediaMime);
+}
 function generateWorld(){
+  clearCinemaPlayback();cinemaScreenMesh=null;
   clearBattleZoneVisuals();
   for(const o of worldObjs){scene.remove(o);const i=solidMeshes.indexOf(o);if(i>=0)solidMeshes.splice(i,1);if(o.geometry)o.geometry.dispose();if(o.material){if(Array.isArray(o.material))o.material.forEach(m=>m.dispose());else o.material.dispose();}}
   worldObjs.length=0;obstacles.length=0;
@@ -819,8 +865,9 @@ function generateWorld(){
   scene.background.setHex(palette?palette.sky:0x8fd0ff);
   scene.fog.color.setHex(palette?palette.fog:0x8fd0ff);
   ground.material.color.setHex(palette?palette.ground:0xffffff);
-  setArena(settings.mode==='campaign'?CAMPAIGN_LEVELS[campaign.level-1].arena:46);
+  setArena(settings.mode==='cinema'?58:settings.mode==='campaign'?CAMPAIGN_LEVELS[campaign.level-1].arena:46);
   ground.material.map=settings.mode==='campaign'?campaignGroundTexture(CAMPAIGN_LEVELS[campaign.level-1].ground):grassMap;ground.material.needsUpdate=true;
+  if(settings.mode==='cinema'){createCinemaMap();return;}
   if(settings.mode==='campaign'){createCampaignMap();return;}
   if(settings.mode==='academy'){createAcademyMap();return;}
   const trunkM=new THREE.MeshLambertMaterial({color:mapId===0?0x6e4b2b:0x7a5230});
@@ -2788,6 +2835,7 @@ function updatePlayer(dt){
   const sp=adminActive()&&!camoFrozen?42:(keys[binds.sprint]||(binds.sprint==='ShiftLeft'&&keys.ShiftRight))&&!ads&&!camoFrozen?12.5:9;
   if(active)moveActor(p,dt,wx*sp*(ads?.6:1),wz*sp*(ads?.6:1),!!keys[binds.jump]);
   else moveActor(p,dt,0,0,false);
+  if(settings.mode==='cinema'){mouse.click=false;mouse.l=false;mouse.r=false;syncTouchBuildUI();return;}
   p.lastHit=Math.max(0,p.lastHit-dt);
   p.fireCd-=dt;p.buildCd-=dt;
   if(adminActive()){p.hp=10000100;p.shield=50;for(let i=0;i<WEAPONS.length;i++){p.has[i]=true;if(WEAPONS[i].mag)p.ammoArr[i]=WEAPONS[i].mag;}p.reloadT=0;p.fireCd=0;p.buildCd=0;}
@@ -3090,6 +3138,37 @@ function lanStatus(t){$('lanStatus').textContent=t;}
 function withSeed(seed,fn){const old=Math.random;let x=(Number(seed)>>>0)||1;Math.random=()=>{x=(x*1664525+1013904223)>>>0;return x/4294967296;};try{return fn();}finally{Math.random=old;}}
 function resetNetSync(){net.lastRemoteState=null;net.remoteStates={};net.hostPhase=null;net.lastOutgoingHitRev=0;net.lastIncomingHitRev=0;net.outRevs={};net.inRevs={};}
 function netSlotOf(a){return a&&a.netSlot!==undefined?a.netSlot:(net.slot===0?1:0);}
+let cinemaMediaData='',cinemaMediaMime='',cinemaVideoElement=null,cinemaTexture=null,cinemaScreenMesh=null,cinemaIsPlaying=false;
+function clearCinemaPlayback(){
+  if(cinemaVideoElement){try{cinemaVideoElement.pause();cinemaVideoElement.removeAttribute('src');cinemaVideoElement.load();cinemaVideoElement.remove();}catch(e){}cinemaVideoElement=null;}
+  if(cinemaTexture){try{cinemaTexture.dispose();}catch(e){}cinemaTexture=null;}
+  cinemaIsPlaying=false;
+  const b=document.getElementById('cinemaPlayBtn');if(b){b.textContent='▶ REPRODUCIR';b.disabled=false;}
+}
+function applyCinemaMedia(data,mime){
+  if(typeof data!=='string'||!data.startsWith('data:')||data.length>11500000)return;
+  clearCinemaPlayback();cinemaMediaData=data;cinemaMediaMime=String(mime||data.slice(5,data.indexOf(';'))||'');
+  const status=document.getElementById('cinemaStatus'),btn=document.getElementById('cinemaPlayBtn');
+  if(cinemaMediaMime.startsWith('video/')){
+    const v=document.createElement('video');v.src=data;v.loop=true;v.playsInline=true;v.preload='auto';v.muted=false;v.style.display='none';document.body.appendChild(v);cinemaVideoElement=v;
+    cinemaTexture=new THREE.VideoTexture(v);cinemaTexture.colorSpace=THREE.SRGBColorSpace;cinemaTexture.minFilter=THREE.LinearFilter;cinemaTexture.magFilter=THREE.LinearFilter;
+    if(cinemaScreenMesh){cinemaScreenMesh.material.map=cinemaTexture;cinemaScreenMesh.material.color.setHex(0xffffff);cinemaScreenMesh.material.needsUpdate=true;}
+    status.textContent='Vídeo cargado. Pulsa reproducir; los controles se sincronizan con la sala.';
+    v.play().then(()=>{cinemaIsPlaying=true;btn.textContent='❚❚ PAUSAR';}).catch(()=>{cinemaIsPlaying=false;});
+  }else if(cinemaMediaMime.startsWith('image/')){
+    new THREE.TextureLoader().load(data,tex=>{
+      tex.colorSpace=THREE.SRGBColorSpace;tex.minFilter=THREE.LinearFilter;tex.magFilter=THREE.LinearFilter;cinemaTexture=tex;
+      if(cinemaScreenMesh){cinemaScreenMesh.material.map=tex;cinemaScreenMesh.material.color.setHex(0xffffff);cinemaScreenMesh.material.needsUpdate=true;}
+    },undefined,()=>{status.textContent='No se pudo cargar la imagen.';});
+    status.textContent='Imagen cargada en la pantalla gigante.';btn.textContent='🖼️ FOTO FIJA';btn.disabled=true;
+  }else status.textContent='Formato no compatible. Usa una imagen o vídeo.';
+}
+function setCinemaPlayback(playing,fromNetwork=false){
+  if(!cinemaVideoElement)return;
+  if(playing){cinemaVideoElement.play().then(()=>{cinemaIsPlaying=true;document.getElementById('cinemaPlayBtn').textContent='❚❚ PAUSAR';}).catch(()=>{document.getElementById('cinemaStatus').textContent='El navegador bloqueó el vídeo: pulsa reproducir otra vez.';});}
+  else{cinemaVideoElement.pause();cinemaIsPlaying=false;document.getElementById('cinemaPlayBtn').textContent='▶ REPRODUCIR';}
+  if(!fromNetwork&&net.active)lanSend({type:'cinema-control',playing:!!playing});
+}
 function lanSend(obj){if(net.ws&&net.ws.readyState===WebSocket.OPEN){try{net.ws.send(JSON.stringify(obj));return true;}catch(e){}}return false;}
 
 /* ================= MODO CARRERAS ================= */
@@ -3563,7 +3642,7 @@ function lanConnect(action){
 function lanMessage(d){
   if(d.type==='created'){
     net.room=d.room;net.seed=d.seed||1;net.role='host';net.roomMode=d.mode||d.roomMode||net.requestedMode||'1v1';net.roomMaxPlayers=clamp(Number(d.maxPlayers)||net.requestedMaxPlayers||2,1,5);net.roomPlayerCount=Number(d.playerCount)||1;
-    const roomLabel=net.roomMode==='race'?'Carreras explosivas':net.roomMode==='chameleon'?'Camaleón (anfitrión buscador)':net.roomMode==='battlezone'?'Zona de batalla':'1 vs 1';
+    const roomLabel=net.roomMode==='cinema'?'Cine multijugador':net.roomMode==='race'?'Carreras explosivas':net.roomMode==='chameleon'?'Camaleón (anfitrión buscador)':net.roomMode==='battlezone'?'Zona de batalla':'1 vs 1';
     lanStatus('Sala «'+d.room+'» creada ('+roomLabel+'). Jugadores: '+net.roomPlayerCount+'/'+net.roomMaxPlayers+'. Comparte el nombre y la contraseña. La salida automática requiere soporte de capacidad en el servidor LAN.');
   }else if(d.type==='room-status'||d.type==='lobby-update'){
     net.roomPlayerCount=clamp(Number(d.playerCount)||1,1,5);net.roomMaxPlayers=clamp(Number(d.maxPlayers)||net.roomMaxPlayers||2,1,5);
@@ -3578,6 +3657,10 @@ function lanMessage(d){
   }else if(d.type==='error'){
     $('againBtn').disabled=false;$('againBtn').textContent='JUGAR DE NUEVO';
     lanStatus(d.message||'No se pudo completar la operación.');
+  }else if(d.type==='cinema-media'){
+    if(net.active&&net.roomMode==='cinema'&&net.role!=='host')applyCinemaMedia(d.media,d.mime);
+  }else if(d.type==='cinema-control'){
+    if(net.active&&net.roomMode==='cinema')setCinemaPlayback(!!d.playing,true);
   }else if(d.type==='race-config'){
     if(net.active&&net.roomMode==='race')applyNetworkRaceTrack(d.trackIndex);
   }else if(d.type==='race-client-ready'){
@@ -3646,16 +3729,17 @@ function lanMessage(d){
 function startNetworkMatch(){
   if(net.previousMode===null)net.previousMode=settings.mode;
   settings.name=($('nameIn').value||'Jugador').trim().slice(0,14)||'Jugador';
-  settings.mode=net.roomMode==='ffa3'?'ffa':['race','chameleon','battlezone','1v1fps'].includes(net.roomMode)?net.roomMode:'1v1';
+  settings.mode=net.roomMode==='ffa3'?'ffa':['race','chameleon','battlezone','1v1fps','cinema'].includes(net.roomMode)?net.roomMode:'1v1';
   $('lanPanel').classList.add('hidden');$('menu').classList.add('hidden');
   startMatch();
+  if(net.roomMode==='cinema'&&net.role==='host'&&cinemaMediaData)lanSend({type:'cinema-media',media:cinemaMediaData,mime:cinemaMediaMime});
   if(net.roomMode==='race'&&net.role==='host'){
     net.raceTrackIndex=clamp(Math.trunc(Number(race.selectedTrackIndex)||0),0,RACE_TRACKS.length-1);
     lanSend({type:'race-config',trackIndex:net.raceTrackIndex});
   }
-  const readyText=net.roomMode==='ffa3'?('Todos vs todos con '+net.roomMaxPlayers+' jugadores: '+net.peers.map(p=>p.name).join(' y ')+'. Gana el primero en conseguir 3 rondas.'):net.roomMode==='race'?('Rival: '+net.peerName+'. Ambos deben pulsar “Estoy listo para correr”. Capacidad: '+net.roomMaxPlayers+' jugadores. Pista: '+(race.track?race.track.name:'Mega Circuito Turbo · Pista única')):net.roomMode==='chameleon'?('Rival: '+net.peerName+'. Anfitrión = buscador; invitado = escondedor. Tres bots completan los cuatro escondedores. Capacidad de sala: '+net.roomMaxPlayers+'.'):net.roomMode==='battlezone'?('Rival: '+net.peerName+'. La batalla comienza tras 10 segundos; sal de la nube verde y permanece dentro del círculo. Capacidad: '+net.roomMaxPlayers+'.'):('Rival: '+net.peerName+'. Pulsa el botón para entrar al combate. Capacidad de sala: '+net.roomMaxPlayers+'.');
+  const readyText=net.roomMode==='cinema'?('Sala de cine con '+net.peerName+'. El anfitrión comparte la foto o vídeo elegido; no hay armas. Pulsa entrar para ver la pantalla gigante.'):net.roomMode==='ffa3'?('Todos vs todos con '+net.roomMaxPlayers+' jugadores: '+net.peers.map(p=>p.name).join(' y ')+'. Gana el primero en conseguir 3 rondas.'):net.roomMode==='race'?('Rival: '+net.peerName+'. Ambos deben pulsar “Estoy listo para correr”. Capacidad: '+net.roomMaxPlayers+' jugadores. Pista: '+(race.track?race.track.name:'Mega Circuito Turbo · Pista única')):net.roomMode==='chameleon'?('Rival: '+net.peerName+'. Anfitrión = buscador; invitado = escondedor. Tres bots completan los cuatro escondedores. Capacidad de sala: '+net.roomMaxPlayers+'.'):net.roomMode==='battlezone'?('Rival: '+net.peerName+'. La batalla comienza tras 10 segundos; sal de la nube verde y permanece dentro del círculo. Capacidad: '+net.roomMaxPlayers+'.'):('Rival: '+net.peerName+'. Pulsa el botón para entrar al combate. Capacidad de sala: '+net.roomMaxPlayers+'.');
   $('netReadySub').textContent=readyText;
-  $('netGoBtn').textContent=net.roomMode==='race'?'ESTOY LISTO PARA CORRER':net.roomMode==='1v1fps'?'ENTRAR AL DUELO FPS':net.roomMode==='chameleon'?'ENTRAR · BUSCADOR / ESCONDEDOR':net.roomMode==='battlezone'?'ENTRAR A ZONA DE BATALLA':net.roomMode==='ffa3'?'ENTRAR A TODOS VS TODOS':'ENTRAR AL 1v1';
+  $('netGoBtn').textContent=net.roomMode==='race'?'ESTOY LISTO PARA CORRER':net.roomMode==='1v1fps'?'ENTRAR AL DUELO FPS':net.roomMode==='chameleon'?'ENTRAR · BUSCADOR / ESCONDEDOR':net.roomMode==='battlezone'?'ENTRAR A ZONA DE BATALLA':net.roomMode==='ffa3'?'ENTRAR A TODOS VS TODOS':net.roomMode==='cinema'?'ENTRAR AL CINE':'ENTRAR AL 1v1';
   $('netReady').classList.remove('hidden');
 }
 function lanPeerLeft(message){
@@ -3689,9 +3773,23 @@ $('btPanClose').addEventListener('click',()=>{$('bluetoothPanPanel').classList.a
 $('btPanGoLan').addEventListener('click',()=>{$('bluetoothPanPanel').classList.add('hidden');$('lanPanel').classList.remove('hidden');lanStatus('Conecta ambos dispositivos mediante Bluetooth PAN, usa la IP Bluetooth que muestra la consola y crea o únete a la sala.');});
 let lanSelectedMode='1v1';
 let lanSelectedMaxPlayers=2;
-document.querySelectorAll('[data-lan-mode]').forEach(b=>b.addEventListener('click',()=>{lanSelectedMode=b.dataset.lanMode;net.requestedMode=lanSelectedMode;document.querySelectorAll('[data-lan-mode]').forEach(x=>x.classList.toggle('on',x===b));$('lanRaceTrackWrap').classList.toggle('hidden',lanSelectedMode!=='race');if(lanSelectedMode==='ffa3')lanStatus('Todos vs todos: sala de 3 jugadores. La partida empieza cuando entren los 3; gana el primero en conseguir 3 rondas.');else if(lanSelectedMode==='chameleon')lanStatus('Modo Camaleón LAN: el anfitrión será el buscador; los demás serán escondedores. Ambos equipos deben usar la misma capacidad y un servidor compatible.');else if(lanSelectedMode==='battlezone')lanStatus('Zona de batalla LAN: la sala se inicia cuando alcanza el límite elegido, si el servidor soporta salas de varios jugadores.');else if(lanSelectedMode==='1v1fps')lanStatus('Duelo FPS LAN: dos jugadores, cámara en primera persona.');else if(lanSelectedMode==='race')lanStatus('Carreras LAN: el anfitrión decide el mapa; el rival recibirá automáticamente la misma pista.');else lanStatus('Modo '+b.textContent.trim()+' seleccionado. El juego online conecta a dos jugadores.');}));
+$('cinemaFile').addEventListener('change',()=>{
+  const f=$('cinemaFile').files&&$('cinemaFile').files[0];cinemaMediaData='';cinemaMediaMime='';
+  if(!f){$('cinemaUploadStatus').textContent='Selecciona una foto o vídeo antes de crear la sala.';return;}
+  if(!(/^image\//.test(f.type)||/^video\//.test(f.type))){$('cinemaUploadStatus').textContent='El archivo debe ser una imagen o vídeo.';$('cinemaFile').value='';return;}
+  if(f.size>8*1024*1024){$('cinemaUploadStatus').textContent='El archivo supera 8 MB. Elige un vídeo más corto o una imagen más ligera.';$('cinemaFile').value='';return;}
+  $('cinemaUploadStatus').textContent='Cargando '+f.name+'…';
+  const reader=new FileReader();reader.onload=()=>{cinemaMediaData=String(reader.result||'');cinemaMediaMime=f.type;$('cinemaUploadStatus').textContent='Listo: '+f.name+' ('+(f.size/1024/1024).toFixed(2)+' MB). Se compartirá al entrar el otro jugador.';};
+  reader.onerror=()=>{$('cinemaUploadStatus').textContent='No se pudo leer el archivo.';};reader.readAsDataURL(f);
+});
+$('cinemaPlayBtn').addEventListener('click',()=>{
+  if(!cinemaVideoElement){$('cinemaStatus').textContent=cinemaMediaMime.startsWith('image/')?'La imagen está fija en la pantalla.':'Todavía no ha llegado ningún vídeo.';return;}
+  setCinemaPlayback(!cinemaIsPlaying,false);
+});
+document.querySelectorAll('[data-lan-mode]').forEach(b=>b.addEventListener('click',()=>{lanSelectedMode=b.dataset.lanMode;net.requestedMode=lanSelectedMode;document.querySelectorAll('[data-lan-mode]').forEach(x=>x.classList.toggle('on',x===b));$('lanRaceTrackWrap').classList.toggle('hidden',lanSelectedMode!=='race');$('cinemaUploadBox').classList.toggle('hidden',lanSelectedMode!=='cinema');if(lanSelectedMode==='cinema')lanStatus('Cine multijugador: elige una foto o vídeo (máx. 8 MB). El anfitrión lo compartirá con el otro jugador.');else if(lanSelectedMode==='ffa3')lanStatus('Todos vs todos: sala de 3 jugadores. La partida empieza cuando entren los 3; gana el primero en conseguir 3 rondas.');else if(lanSelectedMode==='chameleon')lanStatus('Modo Camaleón LAN: el anfitrión será el buscador; los demás serán escondedores. Ambos equipos deben usar la misma capacidad y un servidor compatible.');else if(lanSelectedMode==='battlezone')lanStatus('Zona de batalla LAN: la sala se inicia cuando alcanza el límite elegido, si el servidor soporta salas de varios jugadores.');else if(lanSelectedMode==='1v1fps')lanStatus('Duelo FPS LAN: dos jugadores, cámara en primera persona.');else if(lanSelectedMode==='race')lanStatus('Carreras LAN: el anfitrión decide el mapa; el rival recibirá automáticamente la misma pista.');else lanStatus('Modo '+b.textContent.trim()+' seleccionado. El juego online conecta a dos jugadores.');}));
 $('createRoomBtn').addEventListener('click',async()=>{
   await syncProfileForCurrentName();
+  if(lanSelectedMode==='cinema'&&!cinemaMediaData){lanStatus('Primero selecciona una foto o vídeo en la sección del cine.');return;}
   if(lanSelectedMode==='race'){race.selectedTrackIndex=clamp(Math.trunc(Number($('lanRaceTrack').value)||0),0,RACE_TRACKS.length-1);net.raceTrackIndex=race.selectedTrackIndex;}
   const room=$('roomIn').value.trim(),password=$('roomPass').value;
   if(!room){const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let generated='';for(let i=0;i<6;i++)generated+=chars[Math.floor(Math.random()*chars.length)];$('roomIn').value=generated;}
@@ -3707,10 +3805,11 @@ $('joinRoomBtn').addEventListener('click',async()=>{
   net.previousMode=settings.mode;net.requestedMode=lanSelectedMode;lanSelectedMaxPlayers=lanSelectedMode==='ffa3'?3:2;net.requestedMaxPlayers=lanSelectedMaxPlayers;lanConnect({type:'join',room:room.toUpperCase(),password,name:cleanPlayerName($('nameIn').value),mode:lanSelectedMode});
 });
 $('closeLan').addEventListener('click',()=>{disconnectLan(true);$('lanPanel').classList.add('hidden');});
-$('netGoBtn').addEventListener('click',()=>{requestLandscapeMode();audio();if(AC&&AC.resume)AC.resume();startMusicIfEnabled();if(net.active&&race.active&&settings.mode==='race'){if(race.readyLocal)return;race.readyLocal=true;$('netGoBtn').disabled=true;$('netGoBtn').textContent='ESPERANDO AL RIVAL…';$('netReadySub').textContent='Listo (1/2). Esperando la confirmación del otro jugador…';const sentReady=lanSend({type:'race-ready',trackIndex:race.trackIndex});const sentFallback=lanSend({type:'race-client-ready',trackIndex:race.trackIndex});if(!sentReady&&!sentFallback){race.readyLocal=false;$('netGoBtn').disabled=false;$('netGoBtn').textContent='ESTOY LISTO PARA CORRER';$('netReadySub').textContent='No se pudo enviar la confirmación. Comprueba la conexión LAN e inténtalo de nuevo.';return;}if(net.role==='host'&&race.remoteReady)announceNetworkRaceStart();return;}$('netReady').classList.add('hidden');if(!touchCapable()&&!race.active)lockPointer();});
+$('netGoBtn').addEventListener('click',()=>{requestLandscapeMode();audio();if(AC&&AC.resume)AC.resume();startMusicIfEnabled();if(settings.mode==='cinema'&&cinemaVideoElement)setCinemaPlayback(true,false);if(net.active&&race.active&&settings.mode==='race'){if(race.readyLocal)return;race.readyLocal=true;$('netGoBtn').disabled=true;$('netGoBtn').textContent='ESPERANDO AL RIVAL…';$('netReadySub').textContent='Listo (1/2). Esperando la confirmación del otro jugador…';const sentReady=lanSend({type:'race-ready',trackIndex:race.trackIndex});const sentFallback=lanSend({type:'race-client-ready',trackIndex:race.trackIndex});if(!sentReady&&!sentFallback){race.readyLocal=false;$('netGoBtn').disabled=false;$('netGoBtn').textContent='ESTOY LISTO PARA CORRER';$('netReadySub').textContent='No se pudo enviar la confirmación. Comprueba la conexión LAN e inténtalo de nuevo.';return;}if(net.role==='host'&&race.remoteReady)announceNetworkRaceStart();return;}$('netReady').classList.add('hidden');if(!touchCapable()&&!race.active)lockPointer();});
 $('againBtn').addEventListener('click',()=>{requestLandscapeMode();if(net.active){$('againBtn').disabled=true;$('againBtn').textContent='ESPERANDO AL RIVAL…';lanSend({type:'rematch'});return;}audio();startMatch();});
 
 function spawnList(mode){
+  if(mode==='cinema')return[[0,25],[4,25]];
   if(mode==='chameleon')return[[-34,0],[30,29],[30,-29],[-25,32],[-25,-32]];
   if(mode==='battlezone')return[[-32,-41.8],[-19.2,-41.8],[-6.4,-41.8],[6.4,-41.8],[19.2,-41.8],[32,-41.8]];
   if(mode==='campaign'){const x=ARENA-9;return[[-x,0],[-x,-6],[-x,6],[x,-9],[x,-3],[x,3],[x,9]];}
@@ -3760,6 +3859,7 @@ function buildTeams(){
 }
 function updateScoreboard(){
   const sb=$('scoreboard');
+  if(settings.mode==='cinema'){sb.innerHTML='<span class="tm blue">🎬 CINE</span><span id="roundLbl">SALA COMPARTIDA</span><span class="tm red">SIN ARMAS</span>';return;}
   if(settings.mode==='chameleon'){
     const remain=Math.max(0,Math.ceil(chameleon.surviveTime-chameleon.elapsed));
     const aliveSeekers=actors.filter(a=>a.team===1&&a.alive).length;
@@ -3847,23 +3947,24 @@ function startMatch(){
   if(net.active){resetNetSync();}
   if(settings.mode==='race'){clearBattleZoneVisuals();setArena(46);startRaceMatch();return;}
   if(race.active)clearRaceWorld();
-  document.body.classList.remove('race-mode');document.body.classList.toggle('chameleon-mode',settings.mode==='chameleon');document.body.classList.toggle('battlezone-mode',settings.mode==='battlezone');document.body.classList.toggle('academy-mode',settings.mode==='academy');$('touchControls').classList.remove('racing');$('chameleonTools').classList.toggle('hidden',settings.mode!=='chameleon'||(net.active&&net.role==='host'));chameleon.brushActive=false;chameleon.brushDragging=false;chameleon.brushOrbit=false;$('camoBrushToggle').classList.remove('active');$('camoBrushToggle').textContent='🖌️ Pincel (P)';
+  document.body.classList.remove('race-mode','cinema-mode');document.body.classList.toggle('cinema-mode',settings.mode==='cinema');document.body.classList.toggle('chameleon-mode',settings.mode==='chameleon');document.body.classList.toggle('battlezone-mode',settings.mode==='battlezone');document.body.classList.toggle('academy-mode',settings.mode==='academy');$('touchControls').classList.remove('racing');$('chameleonTools').classList.toggle('hidden',settings.mode!=='chameleon'||(net.active&&net.role==='host'));chameleon.brushActive=false;chameleon.brushDragging=false;chameleon.brushOrbit=false;$('camoBrushToggle').classList.remove('active');$('camoBrushToggle').textContent='🖌️ Pincel (P)';
   if(net.active)withSeed(net.seed,generateWorld);else generateWorld();
   buildTeams();
   if(player&&player.mesh)player.mesh.visible=!isFPS();
   $('menu').classList.add('hidden');$('end').classList.add('hidden');$('pause').classList.add('hidden');
-  $('hud').classList.remove('hidden');
+  $('hud').classList.remove('hidden');$('cinemaControls').classList.toggle('hidden',settings.mode!=='cinema');
+  if(settings.mode==='cinema'){$('cinemaStatus').textContent=cinemaMediaData?'Medio preparado en la pantalla gigante.':'Esperando la foto o el vídeo del anfitrión…';}
   showTouchControls(true);
   startRound();
   if(!net.active&&!touchCapable())lockPointer();
 }
 function toMenu(){
-  state='menu';paused=false;clearBattleZoneVisuals();
+  state='menu';paused=false;clearCinemaPlayback();clearBattleZoneVisuals();
   for(const a of actors)if(a.mesh)a.mesh.visible=true;
   vm.visible=false;
   if(race.active||race.objects.length)clearRaceWorld();
   clearChameleonSplashes();clearChameleonPaintStamps();setChameleonBrushMode(false,false);
-  document.body.classList.remove('race-mode','chameleon-mode','battlezone-mode','academy-mode');$('chameleonTools').classList.add('hidden');$('touchControls').classList.remove('racing');
+  document.body.classList.remove('race-mode','cinema-mode','chameleon-mode','battlezone-mode','academy-mode');$('cinemaControls').classList.add('hidden');$('chameleonTools').classList.add('hidden');$('touchControls').classList.remove('racing');
   if(net.active||net.ws)disconnectLan(true);
   $('netReady').classList.add('hidden');$('lanPanel').classList.add('hidden');
   for(const a of actors)scene.remove(a.mesh);actors.length=0;player=null;
