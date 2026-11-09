@@ -504,7 +504,7 @@ body.cinema-mode #touchControls #standardTouchActions [data-touch-action="fire"]
     <input type="text" id="roomIn" maxlength="12" placeholder="Al crear se genera automáticamente">
     <label>MODO DE LA SALA</label><div class="tag" style="margin:4px 0 8px">Al unirte, se detecta automáticamente el modo del anfitrión; no necesitas seleccionar el mismo.</div>
     <div class="row" id="lanModeRow"><button type="button" class="opt on" data-lan-mode="1v1">⚔️ COMBATE 1v1</button><button type="button" class="opt" data-lan-mode="1v1fps">🎯 DUELO FPS</button><button type="button" class="opt" data-lan-mode="race">🏁 CARRERAS</button><button type="button" class="opt" data-lan-mode="chameleon">🦎 CAMALEÓN</button><button type="button" class="opt" data-lan-mode="battlezone">☣️ ZONA DE BATALLA</button><button type="button" class="opt" data-lan-mode="ffa3">🔫 TODOS VS TODOS (3)</button><button type="button" class="opt" data-lan-mode="cinema">🎬 CINE MULTIJUGADOR</button></div>
-    <div id="cinemaUploadBox" class="hidden"><label for="cinemaFile">🎞️ FOTO O VÍDEO PARA LA PANTALLA GIGANTE (ANFITRIÓN)</label><p>Elige una imagen o vídeo para la pantalla. Límite: 550 MB. Suele alcanzar para muchos vídeos MP4 comprimidos de 5-10 minutos; depende de la resolución y la calidad. Se comparte por fragmentos y no hay armas.</p><input id="cinemaFile" type="file" accept="image/*,video/*"><div id="cinemaUploadStatus">Selecciona una foto o vídeo antes de crear la sala.</div></div>
+    <div id="cinemaUploadBox" class="hidden"><label for="cinemaFile">🎞️ FOTO O VÍDEO PARA LA PANTALLA GIGANTE (ANFITRIÓN)</label><p>Elige una imagen o vídeo para la pantalla. Límite: 400 MB. Suele alcanzar para muchos vídeos MP4 comprimidos de 5-10 minutos; depende de la resolución y la calidad. Se comparte por fragmentos y no hay armas.</p><input id="cinemaFile" type="file" accept="image/*,video/*"><div id="cinemaUploadStatus">Selecciona una foto o vídeo antes de crear la sala.</div></div>
     <div id="lanRaceTrackWrap" class="hidden" style="margin-top:12px">
       <label for="lanRaceTrack">🗺️ MAPA DE CARRERAS LAN (ELIGE EL ANFITRIÓN)</label>
       <select id="lanRaceTrack" class="lan-select" aria-describedby="lanRaceTrackHelp"></select>
@@ -833,30 +833,39 @@ function createCinemaMap(){
   function box(w,h,d,x,y,z,color,solid=false){
     const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat(color));m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;scene.add(m);worldObjs.push(m);if(solid)solidMeshes.push(m);return m;
   }
-  // Auditorio amplio: 150 x 130 unidades y techo alto.
+  // Auditorio plano de 150 x 130 unidades. Las cuatro paredes visibles son pantallas.
   box(150,1,130,0,-.55,0,0x101522);
-  box(150,42,1,0,21,-65,0x171c2c,true);
-  box(150,42,1,0,21,65,0x111725,true);
-  box(1,42,130,-75,21,0,0x151a28,true);
-  box(1,42,130,75,21,0,0x151a28,true);
   box(150,1,130,0,42,0,0x0b0f19);
 
-  // Marco de escenario y pantalla panorámica de 76 x 38.
-  box(86,42,1.5,0,22,-62.5,0x30384c);
-  box(80,40,.45,0,22,-61.48,0x080d18);
-  cinemaScreenMesh=new THREE.Mesh(new THREE.PlaneGeometry(76,38),new THREE.MeshBasicMaterial({color:0x020307,side:THREE.DoubleSide}));
-  cinemaScreenMesh.position.set(0,22,-61.18);scene.add(cinemaScreenMesh);worldObjs.push(cinemaScreenMesh);
-  // Luces laterales, pasillos y focos bajos para conservar la sensación de cine.
-  for(const side of [-1,1])for(let z=-48;z<=48;z+=8){
-    const lamp=box(.22,.25,1.6,side*73.6,2.4,z,0x36b9ff);lamp.material=new THREE.MeshBasicMaterial({color:0x36b9ff});
-    const glow=new THREE.PointLight(0x247cff,.55,12);glow.position.set(side*70,3.1,z);scene.add(glow);worldObjs.push(glow);
+  // Límites invisibles para impedir que los jugadores atraviesen las pantallas.
+  function invisibleBoundary(w,h,d,x,y,z){
+    const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshBasicMaterial({transparent:true,opacity:0,colorWrite:false,depthWrite:false}));
+    mesh.position.set(x,y,z);scene.add(mesh);worldObjs.push(mesh);solidMeshes.push(mesh);
   }
-  // Auditorio completamente plano y despejado: sin butacas, escalones ni pasillos elevados.
-  // El suelo oscuro del auditorio es la única superficie de piso; queda libre para caminar.
+  invisibleBoundary(150,42,.8,0,21,-64.6);
+  invisibleBoundary(150,42,.8,0,21,64.6);
+  invisibleBoundary(.8,42,130,-74.6,21,0);
+  invisibleBoundary(.8,42,130,74.6,21,0);
+
+  // Cuatro pantallas gigantes: una ocupa cada pared completa.
+  cinemaScreenMeshes=[];
+  const screenMaterial=()=>new THREE.MeshBasicMaterial({color:0x020307,side:THREE.DoubleSide});
+  function addWallScreen(width,height,x,y,z,rotationY){
+    const screen=new THREE.Mesh(new THREE.PlaneGeometry(width,height),screenMaterial());
+    screen.position.set(x,y,z);screen.rotation.y=rotationY||0;screen.renderOrder=2;
+    scene.add(screen);worldObjs.push(screen);cinemaScreenMeshes.push(screen);return screen;
+  }
+  addWallScreen(148,41,0,20.5,-64.12,0);       // Pared del fondo
+  addWallScreen(148,41,0,20.5,64.12,Math.PI);  // Pared del frente
+  addWallScreen(128,41,-74.12,20.5,0,Math.PI/2); // Pared izquierda
+  addWallScreen(128,41,74.12,20.5,0,-Math.PI/2); // Pared derecha
+
+  // Iluminación ambiental suave; las cuatro paredes siguen siendo pantallas completas.
+  const ambient=new THREE.PointLight(0x3d5f9d,.65,110);ambient.position.set(0,18,0);scene.add(ambient);worldObjs.push(ambient);
   if(cinemaMediaData)applyCinemaMedia(cinemaMediaData,cinemaMediaMime);
 }
 function generateWorld(){
-  clearCinemaPlayback();cinemaScreenMesh=null;
+  clearCinemaPlayback();cinemaScreenMeshes=[];
   clearBattleZoneVisuals();
   for(const o of worldObjs){scene.remove(o);const i=solidMeshes.indexOf(o);if(i>=0)solidMeshes.splice(i,1);if(o.geometry)o.geometry.dispose();if(o.material){if(Array.isArray(o.material))o.material.forEach(m=>m.dispose());else o.material.dispose();}}
   worldObjs.length=0;obstacles.length=0;
@@ -3138,98 +3147,119 @@ function lanStatus(t){$('lanStatus').textContent=t;}
 function withSeed(seed,fn){const old=Math.random;let x=(Number(seed)>>>0)||1;Math.random=()=>{x=(x*1664525+1013904223)>>>0;return x/4294967296;};try{return fn();}finally{Math.random=old;}}
 function resetNetSync(){net.lastRemoteState=null;net.remoteStates={};net.hostPhase=null;net.lastOutgoingHitRev=0;net.lastIncomingHitRev=0;net.outRevs={};net.inRevs={};}
 function netSlotOf(a){return a&&a.netSlot!==undefined?a.netSlot:(net.slot===0?1:0);}
-const CINEMA_MAX_FILE_BYTES=550*1024*1024; // 550 MB por archivo; con margen para vídeos de alrededor de 490 MB
-const CINEMA_MAX_MEDIA_DATA_CHARS=Math.ceil(CINEMA_MAX_FILE_BYTES/3)*4+1024;
-const CINEMA_CHUNK_CHARS=48*1024;
+const CINEMA_MAX_FILE_BYTES=400*1024*1024; // Se conserva el límite anterior de 400 MB.
+const CINEMA_BINARY_CHUNK_BYTES=1024*1024; // Fragmentos binarios de 1 MB: menos mensajes y sin expansión base64.
 let cinemaIncomingTransfer=null;
-let cinemaMediaData='',cinemaMediaMime='',cinemaVideoElement=null,cinemaTexture=null,cinemaScreenMesh=null,cinemaIsPlaying=false;
+let cinemaMediaData=null,cinemaMediaMime='',cinemaVideoElement=null,cinemaTexture=null,cinemaScreenMeshes=[],cinemaIsPlaying=false,cinemaMediaObjectUrl='',cinemaPendingPlayback=null;
+function setCinemaTextureOnScreens(texture){
+  for(const screen of cinemaScreenMeshes){
+    if(!screen||!screen.material)continue;
+    screen.material.map=texture||null;
+    screen.material.color.setHex(texture?0xffffff:0x020307);
+    screen.material.needsUpdate=true;
+  }
+}
 function clearCinemaPlayback(){
   if(cinemaVideoElement){try{cinemaVideoElement.pause();cinemaVideoElement.removeAttribute('src');cinemaVideoElement.load();cinemaVideoElement.remove();}catch(e){}cinemaVideoElement=null;}
   if(cinemaTexture){try{cinemaTexture.dispose();}catch(e){}cinemaTexture=null;}
+  if(cinemaMediaObjectUrl){try{URL.revokeObjectURL(cinemaMediaObjectUrl);}catch(e){}cinemaMediaObjectUrl='';}
+  setCinemaTextureOnScreens(null);
   cinemaIsPlaying=false;
   const b=document.getElementById('cinemaPlayBtn');if(b){b.textContent='▶ REPRODUCIR';b.disabled=false;}
 }
 function applyCinemaMedia(data,mime){
-  if(typeof data!=='string'||!data.startsWith('data:')||data.length>CINEMA_MAX_MEDIA_DATA_CHARS)return;
-  clearCinemaPlayback();cinemaMediaData=data;cinemaMediaMime=String(mime||data.slice(5,data.indexOf(';'))||'');
+  const isBlob=typeof Blob!=='undefined'&&data instanceof Blob;
+  if(!isBlob&&(typeof data!=='string'||!data.startsWith('data:')||data.length>Math.ceil(CINEMA_MAX_FILE_BYTES/3)*4+1024))return;
+  if(isBlob&&data.size>CINEMA_MAX_FILE_BYTES)return;
+  clearCinemaPlayback();cinemaMediaData=data;cinemaMediaMime=String(mime||(isBlob?data.type:data.slice(5,data.indexOf(';')))||'');
+  const src=isBlob?(cinemaMediaObjectUrl=URL.createObjectURL(data)):data;
   const status=document.getElementById('cinemaStatus'),btn=document.getElementById('cinemaPlayBtn');
   if(cinemaMediaMime.startsWith('video/')){
-    const v=document.createElement('video');v.src=data;v.loop=true;v.playsInline=true;v.preload='auto';v.muted=false;v.style.display='none';document.body.appendChild(v);cinemaVideoElement=v;
+    const v=document.createElement('video');v.src=src;v.loop=true;v.playsInline=true;v.preload='auto';v.muted=false;v.style.display='none';document.body.appendChild(v);cinemaVideoElement=v;
     cinemaTexture=new THREE.VideoTexture(v);cinemaTexture.colorSpace=THREE.SRGBColorSpace;cinemaTexture.minFilter=THREE.LinearFilter;cinemaTexture.magFilter=THREE.LinearFilter;
-    if(cinemaScreenMesh){cinemaScreenMesh.material.map=cinemaTexture;cinemaScreenMesh.material.color.setHex(0xffffff);cinemaScreenMesh.material.needsUpdate=true;}
-    status.textContent='Vídeo cargado. Pulsa reproducir; los controles se sincronizan con la sala.';
-    v.play().then(()=>{cinemaIsPlaying=true;btn.textContent='❚❚ PAUSAR';}).catch(()=>{cinemaIsPlaying=false;});
+    setCinemaTextureOnScreens(cinemaTexture);
+    status.textContent='Vídeo listo en las cuatro pantallas. Pulsa reproducir; los controles se sincronizan con la sala.';
+    if(cinemaPendingPlayback){const pending=cinemaPendingPlayback;cinemaPendingPlayback=null;setCinemaPlayback(pending.playing,true,pending.currentTime,pending.receivedAt);}
+    else v.play().then(()=>{cinemaIsPlaying=true;btn.textContent='❚❚ PAUSAR';}).catch(()=>{cinemaIsPlaying=false;});
   }else if(cinemaMediaMime.startsWith('image/')){
-    new THREE.TextureLoader().load(data,tex=>{
-      tex.colorSpace=THREE.SRGBColorSpace;tex.minFilter=THREE.LinearFilter;tex.magFilter=THREE.LinearFilter;cinemaTexture=tex;
-      if(cinemaScreenMesh){cinemaScreenMesh.material.map=tex;cinemaScreenMesh.material.color.setHex(0xffffff);cinemaScreenMesh.material.needsUpdate=true;}
+    new THREE.TextureLoader().load(src,tex=>{
+      tex.colorSpace=THREE.SRGBColorSpace;tex.minFilter=THREE.LinearFilter;tex.magFilter=THREE.LinearFilter;cinemaTexture=tex;setCinemaTextureOnScreens(tex);
     },undefined,()=>{status.textContent='No se pudo cargar la imagen.';});
-    status.textContent='Imagen cargada en la pantalla gigante.';btn.textContent='🖼️ FOTO FIJA';btn.disabled=true;
+    status.textContent='Imagen cargada en las cuatro pantallas.';btn.textContent='🖼️ FOTO FIJA';btn.disabled=true;
   }else status.textContent='Formato no compatible. Usa una imagen o vídeo.';
 }
-function setCinemaPlayback(playing,fromNetwork=false){
-  if(!cinemaVideoElement)return;
+function setCinemaPlayback(playing,fromNetwork=false,remoteTime=null,receivedAt=0){
+  if(!cinemaVideoElement){if(fromNetwork)cinemaPendingPlayback={playing:!!playing,currentTime:Number(remoteTime)||0,receivedAt:receivedAt||performance.now()};return;}
+  if(fromNetwork&&Number.isFinite(Number(remoteTime))){
+    let target=Math.max(0,Number(remoteTime)||0);
+    if(playing&&receivedAt)target+=Math.max(0,(performance.now()-receivedAt)/1000);
+    const seek=()=>{try{if(cinemaVideoElement)cinemaVideoElement.currentTime=target;}catch(e){}};
+    if(cinemaVideoElement.readyState>=1)seek();else cinemaVideoElement.addEventListener('loadedmetadata',seek,{once:true});
+  }
   if(playing){cinemaVideoElement.play().then(()=>{cinemaIsPlaying=true;document.getElementById('cinemaPlayBtn').textContent='❚❚ PAUSAR';}).catch(()=>{document.getElementById('cinemaStatus').textContent='El navegador bloqueó el vídeo: pulsa reproducir otra vez.';});}
   else{cinemaVideoElement.pause();cinemaIsPlaying=false;document.getElementById('cinemaPlayBtn').textContent='▶ REPRODUCIR';}
-  if(!fromNetwork&&net.active)lanSend({type:'cinema-control',playing:!!playing});
+  if(!fromNetwork&&net.active)lanSend({type:'cinema-control',playing:!!playing,currentTime:cinemaVideoElement.currentTime||0});
 }
-function sendCinemaMediaToPeer(){
+async function sendCinemaMediaToPeer(){
   if(!net.active||net.role!=='host'||net.roomMode!=='cinema'||!cinemaMediaData)return;
-  const data=cinemaMediaData,mime=cinemaMediaMime;
-  if(data.length>CINEMA_MAX_MEDIA_DATA_CHARS){$('cinemaStatus').textContent='El archivo es demasiado grande para compartir.';return;}
+  const file=cinemaMediaData,mime=cinemaMediaMime;
+  if(!(file instanceof Blob)||file.size<1||file.size>CINEMA_MAX_FILE_BYTES){$('cinemaStatus').textContent='El archivo no es válido o supera 400 MB.';return;}
   const transferId='cine-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,9);
-  const totalChunks=Math.ceil(data.length/CINEMA_CHUNK_CHARS);
-  if(!lanSend({type:'cinema-media-start',transferId,mime,totalChars:data.length,totalChunks})){
+  const totalChunks=Math.ceil(file.size/CINEMA_BINARY_CHUNK_BYTES);
+  if(!lanSend({type:'cinema-media-start',transferId,mime,totalBytes:file.size,totalChunks,chunkBytes:CINEMA_BINARY_CHUNK_BYTES})){
     $('cinemaStatus').textContent='No se pudo iniciar el envío del vídeo. Comprueba la conexión.';return;
   }
-  $('cinemaStatus').textContent='Enviando '+(mime.startsWith('video/')?'vídeo':'imagen')+' a la sala…';
-  let index=0,lastShown=0;
-  const pump=()=>{
-    if(!net.active||net.roomMode!=='cinema'||!net.ws||net.ws.readyState!==WebSocket.OPEN)return;
-    let batch=0;
-    while(index<totalChunks&&net.ws.bufferedAmount<256*1024&&batch<8){
-      const chunk=data.slice(index*CINEMA_CHUNK_CHARS,(index+1)*CINEMA_CHUNK_CHARS);
-      if(!lanSend({type:'cinema-media-chunk',transferId,index,chunk}))return;
-      index++;batch++;
-    }
-    const pct=Math.floor(index/totalChunks*100);
-    if(pct>=lastShown+10){lastShown=pct;$('cinemaStatus').textContent='Enviando al otro jugador… '+pct+'%';}
-    if(index<totalChunks){setTimeout(pump,25);return;}
-    lanSend({type:'cinema-media-end',transferId});
-    $('cinemaStatus').textContent='Archivo enviado. El otro jugador ya puede verlo en la pantalla.';
+  $('cinemaStatus').textContent='Enviando vídeo al otro jugador… 0%';
+  let index=0,lastShown=0,sentBytes=0;
+  const pump=async()=>{
+    try{
+      if(!net.active||net.roomMode!=='cinema'||!net.ws||net.ws.readyState!==WebSocket.OPEN)return;
+      let batch=0;
+      // Ventanas de hasta 8 MB. Se aprovecha mejor la conexión y se respeta la contrapresión.
+      while(index<totalChunks&&net.ws.bufferedAmount<4*1024*1024&&batch<8){
+        const start=index*CINEMA_BINARY_CHUNK_BYTES,end=Math.min(file.size,start+CINEMA_BINARY_CHUNK_BYTES);
+        const chunk=await file.slice(start,end).arrayBuffer();
+        if(!net.active||!net.ws||net.ws.readyState!==WebSocket.OPEN)return;
+        net.ws.send(chunk);sentBytes+=chunk.byteLength;index++;batch++;
+      }
+      const pct=Math.floor(sentBytes/file.size*100);
+      if(pct>=lastShown+5||pct===100){lastShown=pct;$('cinemaStatus').textContent='Enviando al otro jugador… '+pct+'% ('+(sentBytes/1024/1024).toFixed(1)+' / '+(file.size/1024/1024).toFixed(1)+' MB)';}
+      if(index<totalChunks){setTimeout(()=>pump().catch(()=>{$('cinemaStatus').textContent='Se interrumpió el envío. Comprueba la conexión e inténtalo otra vez.';}),8);return;}
+      lanSend({type:'cinema-media-end',transferId});
+      $('cinemaStatus').textContent='Envío completado. El vídeo ya está disponible en las cuatro pantallas.';
+    }catch(err){$('cinemaStatus').textContent='Error leyendo o enviando el vídeo. Inténtalo de nuevo.';}
   };
   pump();
 }
 function receiveCinemaMediaMessage(d){
   if(!net.active||net.roomMode!=='cinema'||net.role==='host')return;
   if(d.type==='cinema-media-start'){
-    const totalChars=Number(d.totalChars),totalChunks=Number(d.totalChunks);
+    const totalBytes=Number(d.totalBytes),totalChunks=Number(d.totalChunks),chunkBytes=Number(d.chunkBytes);
     if(typeof d.transferId!=='string'||!d.transferId.startsWith('cine-')||!/^((image|video)\/[a-zA-Z0-9.+-]+)$/.test(String(d.mime||''))||
-       !Number.isSafeInteger(totalChars)||totalChars<1||totalChars>CINEMA_MAX_MEDIA_DATA_CHARS||
-       !Number.isSafeInteger(totalChunks)||totalChunks<1||totalChunks>Math.ceil(CINEMA_MAX_MEDIA_DATA_CHARS/CINEMA_CHUNK_CHARS)+1){
+       !Number.isSafeInteger(totalBytes)||totalBytes<1||totalBytes>CINEMA_MAX_FILE_BYTES||
+       chunkBytes!==CINEMA_BINARY_CHUNK_BYTES||!Number.isSafeInteger(totalChunks)||totalChunks!==Math.ceil(totalBytes/CINEMA_BINARY_CHUNK_BYTES)){
       $('cinemaStatus').textContent='El anfitrión envió un archivo no válido o demasiado grande.';cinemaIncomingTransfer=null;return;
     }
-    cinemaIncomingTransfer={id:d.transferId,mime:d.mime,totalChars,totalChunks,chunks:new Array(totalChunks),received:0,lastPct:-1};
+    cinemaIncomingTransfer={id:d.transferId,mime:d.mime,totalBytes,totalChunks,chunks:[],receivedBytes:0,lastPct:-1};
     $('cinemaStatus').textContent='Recibiendo vídeo del anfitrión… 0%';
     return;
   }
   const transfer=cinemaIncomingTransfer;
   if(!transfer||d.transferId!==transfer.id)return;
-  if(d.type==='cinema-media-chunk'){
-    const index=Number(d.index),chunk=d.chunk;
-    if(!Number.isInteger(index)||index<0||index>=transfer.totalChunks||typeof chunk!=='string'||chunk.length>CINEMA_CHUNK_CHARS)return;
-    if(transfer.chunks[index]===undefined){transfer.chunks[index]=chunk;transfer.received++;}
-    const pct=Math.floor(transfer.received/transfer.totalChunks*100);
-    if(pct>=transfer.lastPct+10){transfer.lastPct=pct;$('cinemaStatus').textContent='Recibiendo vídeo del anfitrión… '+pct+'%';}
-    return;
-  }
   if(d.type==='cinema-media-end'){
-    if(transfer.received!==transfer.totalChunks){$('cinemaStatus').textContent='La transferencia quedó incompleta. Pide al anfitrión que vuelva a compartir el vídeo.';cinemaIncomingTransfer=null;return;}
-    const data=transfer.chunks.join('');
-    if(data.length!==transfer.totalChars||!data.startsWith('data:')){$('cinemaStatus').textContent='El archivo recibido está dañado. Vuelve a enviarlo.';cinemaIncomingTransfer=null;return;}
-    const mime=transfer.mime;cinemaIncomingTransfer=null;applyCinemaMedia(data,mime);
-    $('cinemaStatus').textContent='Vídeo recibido y colocado en la pantalla gigante. Pulsa reproducir.';
+    if(transfer.receivedBytes!==transfer.totalBytes||transfer.chunks.length!==transfer.totalChunks){$('cinemaStatus').textContent='La transferencia quedó incompleta. Pide al anfitrión que vuelva a enviarlo.';cinemaIncomingTransfer=null;return;}
+    const blob=new Blob(transfer.chunks,{type:transfer.mime}),mime=transfer.mime;cinemaIncomingTransfer=null;applyCinemaMedia(blob,mime);
+    $('cinemaStatus').textContent='Vídeo recibido y cargado en las cuatro pantallas. Pulsa reproducir.';
   }
+}
+function receiveCinemaBinaryChunk(buffer){
+  const transfer=cinemaIncomingTransfer;if(!net.active||net.roomMode!=='cinema'||net.role==='host'||!transfer)return;
+  if(!(buffer instanceof ArrayBuffer))return;
+  const size=buffer.byteLength;
+  if(size<1||size>CINEMA_BINARY_CHUNK_BYTES||transfer.receivedBytes+size>transfer.totalBytes){cinemaIncomingTransfer=null;$('cinemaStatus').textContent='Se recibió un fragmento inválido. Vuelve a compartir el vídeo.';return;}
+  transfer.chunks.push(buffer);transfer.receivedBytes+=size;
+  const pct=Math.floor(transfer.receivedBytes/transfer.totalBytes*100);
+  if(pct>=transfer.lastPct+5){transfer.lastPct=pct;$('cinemaStatus').textContent='Recibiendo vídeo… '+pct+'% ('+(transfer.receivedBytes/1024/1024).toFixed(1)+' / '+(transfer.totalBytes/1024/1024).toFixed(1)+' MB)';}
 }
 function lanSend(obj){if(net.ws&&net.ws.readyState===WebSocket.OPEN){try{net.ws.send(JSON.stringify(obj));return true;}catch(e){}}return false;}
 
@@ -3695,9 +3725,9 @@ function lanConnect(action){
   lanStatus('Conectando con el servidor online…');
   const scheme=location.protocol==='https:'?'wss://':'ws://';
   try{net.ws=new WebSocket(scheme+location.host+'/ws');}catch(e){net.connecting=false;lanStatus('No se pudo crear la conexión. Comprueba que el servidor LAN está iniciado.');return;}
-  const ws=net.ws;
+  const ws=net.ws;ws.binaryType='arraybuffer';
   ws.onopen=()=>{net.connecting=false;if(net.pendingAction){lanSend(net.pendingAction);net.pendingAction=null;}};
-  ws.onmessage=e=>{let d;try{d=JSON.parse(e.data);}catch(err){return;}lanMessage(d);};
+  ws.onmessage=e=>{if(typeof e.data!=='string'){receiveCinemaBinaryChunk(e.data);return;}let d;try{d=JSON.parse(e.data);}catch(err){return;}lanMessage(d);};
   ws.onerror=()=>{net.connecting=false;lanStatus('No se pudo conectar al servidor online. Revisa que la página esté publicada en Render.');};
   ws.onclose=()=>{const unexpected=!ws.__intentionalClose;net.connecting=false;if(net.ws===ws)net.ws=null;if(unexpected&&net.active)lanPeerLeft('Se perdió la conexión con el servidor LAN.');};
 }
@@ -3722,7 +3752,7 @@ function lanMessage(d){
   }else if(d.type==='cinema-media-start'||d.type==='cinema-media-chunk'||d.type==='cinema-media-end'){
     receiveCinemaMediaMessage(d);
   }else if(d.type==='cinema-control'){
-    if(net.active&&net.roomMode==='cinema')setCinemaPlayback(!!d.playing,true);
+    if(net.active&&net.roomMode==='cinema')setCinemaPlayback(!!d.playing,true,d.currentTime);
   }else if(d.type==='race-config'){
     if(net.active&&net.roomMode==='race')applyNetworkRaceTrack(d.trackIndex);
   }else if(d.type==='race-client-ready'){
@@ -3836,19 +3866,18 @@ $('btPanGoLan').addEventListener('click',()=>{$('bluetoothPanPanel').classList.a
 let lanSelectedMode='1v1';
 let lanSelectedMaxPlayers=2;
 $('cinemaFile').addEventListener('change',()=>{
-  const f=$('cinemaFile').files&&$('cinemaFile').files[0];cinemaMediaData='';cinemaMediaMime='';
+  const f=$('cinemaFile').files&&$('cinemaFile').files[0];cinemaMediaData=null;cinemaMediaMime='';
   if(!f){$('cinemaUploadStatus').textContent='Selecciona una foto o vídeo antes de crear la sala.';return;}
   if(!(/^image\//.test(f.type)||/^video\//.test(f.type))){$('cinemaUploadStatus').textContent='El archivo debe ser una imagen o vídeo.';$('cinemaFile').value='';return;}
-  if(f.size>CINEMA_MAX_FILE_BYTES){$('cinemaUploadStatus').textContent='El archivo supera 550 MB. Prueba a comprimir el vídeo o exportarlo en 720p/1080p con menor bitrate.';$('cinemaFile').value='';return;}
-  $('cinemaUploadStatus').textContent='Cargando '+f.name+'…';
-  const reader=new FileReader();reader.onload=()=>{cinemaMediaData=String(reader.result||'');cinemaMediaMime=f.type;$('cinemaUploadStatus').textContent='Listo: '+f.name+' ('+(f.size/1024/1024).toFixed(2)+' MB). Se enviará por fragmentos al entrar el otro jugador.';};
-  reader.onerror=()=>{$('cinemaUploadStatus').textContent='No se pudo leer el archivo.';};reader.readAsDataURL(f);
+  if(f.size>CINEMA_MAX_FILE_BYTES){$('cinemaUploadStatus').textContent='El archivo supera 400 MB. Elige un vídeo más ligero.';$('cinemaFile').value='';return;}
+  cinemaMediaData=f;cinemaMediaMime=f.type;
+  $('cinemaUploadStatus').textContent='Listo: '+f.name+' ('+(f.size/1024/1024).toFixed(2)+' MB). Se enviará como datos binarios por fragmentos, sin convertirlo a base64.';
 });
 $('cinemaPlayBtn').addEventListener('click',()=>{
   if(!cinemaVideoElement){$('cinemaStatus').textContent=cinemaMediaMime.startsWith('image/')?'La imagen está fija en la pantalla.':'Todavía no ha llegado ningún vídeo.';return;}
   setCinemaPlayback(!cinemaIsPlaying,false);
 });
-document.querySelectorAll('[data-lan-mode]').forEach(b=>b.addEventListener('click',()=>{lanSelectedMode=b.dataset.lanMode;net.requestedMode=lanSelectedMode;document.querySelectorAll('[data-lan-mode]').forEach(x=>x.classList.toggle('on',x===b));$('lanRaceTrackWrap').classList.toggle('hidden',lanSelectedMode!=='race');$('cinemaUploadBox').classList.toggle('hidden',lanSelectedMode!=='cinema');if(lanSelectedMode==='cinema')lanStatus('Cine multijugador: el anfitrión elige una foto o vídeo (máx. 550 MB). El modo se detecta automáticamente al unirse.');else if(lanSelectedMode==='ffa3')lanStatus('Todos vs todos: sala de 3 jugadores. La partida empieza cuando entren los 3; gana el primero en conseguir 3 rondas.');else if(lanSelectedMode==='chameleon')lanStatus('Modo Camaleón LAN: el anfitrión será el buscador; los demás serán escondedores. Ambos equipos deben usar la misma capacidad y un servidor compatible.');else if(lanSelectedMode==='battlezone')lanStatus('Zona de batalla LAN: la sala se inicia cuando alcanza el límite elegido, si el servidor soporta salas de varios jugadores.');else if(lanSelectedMode==='1v1fps')lanStatus('Duelo FPS LAN: dos jugadores, cámara en primera persona.');else if(lanSelectedMode==='race')lanStatus('Carreras LAN: el anfitrión decide el mapa; el rival recibirá automáticamente la misma pista.');else lanStatus('Modo '+b.textContent.trim()+' seleccionado. El juego online conecta a dos jugadores.');}));
+document.querySelectorAll('[data-lan-mode]').forEach(b=>b.addEventListener('click',()=>{lanSelectedMode=b.dataset.lanMode;net.requestedMode=lanSelectedMode;document.querySelectorAll('[data-lan-mode]').forEach(x=>x.classList.toggle('on',x===b));$('lanRaceTrackWrap').classList.toggle('hidden',lanSelectedMode!=='race');$('cinemaUploadBox').classList.toggle('hidden',lanSelectedMode!=='cinema');if(lanSelectedMode==='cinema')lanStatus('Cine multijugador: el anfitrión elige una foto o vídeo (máx. 400 MB). El modo se detecta automáticamente al unirse.');else if(lanSelectedMode==='ffa3')lanStatus('Todos vs todos: sala de 3 jugadores. La partida empieza cuando entren los 3; gana el primero en conseguir 3 rondas.');else if(lanSelectedMode==='chameleon')lanStatus('Modo Camaleón LAN: el anfitrión será el buscador; los demás serán escondedores. Ambos equipos deben usar la misma capacidad y un servidor compatible.');else if(lanSelectedMode==='battlezone')lanStatus('Zona de batalla LAN: la sala se inicia cuando alcanza el límite elegido, si el servidor soporta salas de varios jugadores.');else if(lanSelectedMode==='1v1fps')lanStatus('Duelo FPS LAN: dos jugadores, cámara en primera persona.');else if(lanSelectedMode==='race')lanStatus('Carreras LAN: el anfitrión decide el mapa; el rival recibirá automáticamente la misma pista.');else lanStatus('Modo '+b.textContent.trim()+' seleccionado. El juego online conecta a dos jugadores.');}));
 $('createRoomBtn').addEventListener('click',async()=>{
   await syncProfileForCurrentName();
   if(lanSelectedMode==='cinema'&&!cinemaMediaData){lanStatus('Primero selecciona una foto o vídeo en la sección del cine.');return;}
