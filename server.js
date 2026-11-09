@@ -39,10 +39,7 @@ wss.on('connection', ws => {
       let roomCode = String(d.room || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
       if (!roomCode) roomCode = code();
       if (rooms.has(roomCode)) { send(ws, { type: 'error', message: 'Ese código ya está ocupado. Crea otra sala.' }); return; }
-      const validModes = ['1v1','race','chameleon','battlezone','1v1fps','ffa3','cinema'];
-      const requestedMode = String(d.mode || '1v1');
-      const roomMode = validModes.includes(requestedMode) ? requestedMode : '1v1';
-      const room = { code: roomCode, password: String(d.password || ''), mode: roomMode, max: roomMode === 'ffa3' ? 3 : 2, seed: crypto.randomInt(1, 0x7fffffff), players: [], names: new Map(), host: ws, started: false, raceReady: new Set() };
+      const room = { code: roomCode, password: String(d.password || ''), mode: ['race','chameleon','battlezone','1v1fps','ffa3'].includes(d.mode) ? d.mode : '1v1', max: d.mode === 'ffa3' ? 3 : 2, seed: crypto.randomInt(1, 0x7fffffff), players: [], names: new Map(), host: ws, started: false, raceReady: new Set() };
       rooms.set(roomCode, room); room.players.push(ws); ws.room = room; ws.role = 'host'; ws.playerName = String(d.name || 'Jugador').slice(0, 24);
       send(ws, { type: 'created', ...roomInfo(room) });
       return;
@@ -55,7 +52,7 @@ wss.on('connection', ws => {
       if (!room) { send(ws, { type: 'error', message: 'No existe esa sala. Revisa el código.' }); return; }
       if (room.password !== String(d.password || '')) { send(ws, { type: 'error', message: 'La contraseña no coincide.' }); return; }
       if (room.started || room.players.length >= (room.max || 2)) { send(ws, { type: 'error', message: 'La sala ya está llena.' }); return; }
-      // El modo del anfitrión es la autoridad: el invitado entra a ese modo automáticamente.
+      if (room.mode !== d.mode && d.mode) { send(ws, { type: 'error', message: 'El modo no coincide con el anfitrión. Elige el mismo modo.' }); return; }
       room.players.push(ws); ws.room = room; ws.role = 'guest'; ws.playerName = String(d.name || 'Jugador').slice(0, 24);
       if (room.players.length < (room.max || 2)) {
         // Sala de 3 jugadores todavía incompleta: avisa a todos y espera.
@@ -74,12 +71,6 @@ wss.on('connection', ws => {
 
     const room = ws.room;
     if (!room || !room.players.includes(ws)) { send(ws, { type: 'error', message: 'Primero crea o únete a una sala.' }); return; }
-
-    if (d.type === 'cinema-media-start' || d.type === 'cinema-media-chunk' || d.type === 'cinema-media-end') {
-      if (room.mode !== 'cinema' || ws !== room.host) return;
-      broadcast(room, d, ws);
-      return;
-    }
 
     if (d.type === 'race-ready' || d.type === 'race-client-ready') {
       room.raceReady.add(ws);
