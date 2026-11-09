@@ -504,7 +504,7 @@ body.cinema-mode #touchControls #standardTouchActions [data-touch-action="fire"]
     <input type="text" id="roomIn" maxlength="12" placeholder="Al crear se genera automáticamente">
     <label>MODO DE LA SALA</label><div class="tag" style="margin:4px 0 8px">Al unirte, se detecta automáticamente el modo del anfitrión; no necesitas seleccionar el mismo.</div>
     <div class="row" id="lanModeRow"><button type="button" class="opt on" data-lan-mode="1v1">⚔️ COMBATE 1v1</button><button type="button" class="opt" data-lan-mode="1v1fps">🎯 DUELO FPS</button><button type="button" class="opt" data-lan-mode="race">🏁 CARRERAS</button><button type="button" class="opt" data-lan-mode="chameleon">🦎 CAMALEÓN</button><button type="button" class="opt" data-lan-mode="battlezone">☣️ ZONA DE BATALLA</button><button type="button" class="opt" data-lan-mode="ffa3">🔫 TODOS VS TODOS (3)</button><button type="button" class="opt" data-lan-mode="cinema">🎬 CINE MULTIJUGADOR</button></div>
-    <div id="cinemaUploadBox" class="hidden"><label for="cinemaFile">🎞️ FOTO O VÍDEO PARA LA PANTALLA GIGANTE (ANFITRIÓN)</label><p>Elige una imagen o vídeo pequeño. Se enviará al otro jugador cuando la sala se conecte. Límite: 100 MB. Solo el anfitrión necesita cargar el archivo; se comparte por fragmentos y no hay armas.</p><input id="cinemaFile" type="file" accept="image/*,video/*"><div id="cinemaUploadStatus">Selecciona una foto o vídeo antes de crear la sala.</div></div>
+    <div id="cinemaUploadBox" class="hidden"><label for="cinemaFile">🎞️ FOTO O VÍDEO PARA LA PANTALLA GIGANTE (ANFITRIÓN)</label><p>Elige una imagen o vídeo para la pantalla. Límite: 400 MB. Suele alcanzar para muchos vídeos MP4 comprimidos de 5-10 minutos; depende de la resolución y la calidad. Se comparte por fragmentos y no hay armas.</p><input id="cinemaFile" type="file" accept="image/*,video/*"><div id="cinemaUploadStatus">Selecciona una foto o vídeo antes de crear la sala.</div></div>
     <div id="lanRaceTrackWrap" class="hidden" style="margin-top:12px">
       <label for="lanRaceTrack">🗺️ MAPA DE CARRERAS LAN (ELIGE EL ANFITRIÓN)</label>
       <select id="lanRaceTrack" class="lan-select" aria-describedby="lanRaceTrackHelp"></select>
@@ -851,26 +851,8 @@ function createCinemaMap(){
     const lamp=box(.22,.25,1.6,side*73.6,2.4,z,0x36b9ff);lamp.material=new THREE.MeshBasicMaterial({color:0x36b9ff});
     const glow=new THREE.PointLight(0x247cff,.55,12);glow.position.set(side*70,3.1,z);scene.add(glow);worldObjs.push(glow);
   }
-  const seatM=[0x8d233b,0x9d2945,0x6f1c35].map(c=>mat(c)),legM=mat(0x272d3a);
-  // Nueve filas escalonadas con pasillo central y más de cien butacas.
-  for(let row=0;row<9;row++){
-    const z=-31+row*8.1,y=.35+row*.42;
-    for(let col=-7;col<=7;col++){
-      if(col===0)continue;
-      const x=col*8.0,sm=seatM[(row+col+30)%seatM.length];
-      const base=new THREE.Mesh(new THREE.BoxGeometry(4.25,.72,3.7),sm);base.position.set(x,y,z);base.castShadow=true;base.receiveShadow=true;scene.add(base);worldObjs.push(base);
-      const back=new THREE.Mesh(new THREE.BoxGeometry(4.25,2.55,.72),sm);back.position.set(x,y+1.48,z+1.35);back.castShadow=true;scene.add(back);worldObjs.push(back);
-      const foot=new THREE.Mesh(new THREE.BoxGeometry(3.1,.36,1.7),legM);foot.position.set(x,y-.52,z);scene.add(foot);worldObjs.push(foot);
-      const armL=new THREE.Mesh(new THREE.BoxGeometry(.24,.5,1.2),legM);armL.position.set(x-1.95,y+.65,z+.1);scene.add(armL);worldObjs.push(armL);
-      const armR=armL.clone();armR.position.x=x+1.95;scene.add(armR);worldObjs.push(armR);
-    }
-    const aisleLight=new THREE.Mesh(new THREE.BoxGeometry(1.1,.045,7.2),new THREE.MeshBasicMaterial({color:0x1d7d99}));aisleLight.position.set(0,.08+row*.42,z);scene.add(aisleLight);worldObjs.push(aisleLight);
-  }
-  // Luces de escalón en ambos pasillos laterales.
-  for(const side of [-1,1])for(let row=0;row<9;row++){
-    const step=new THREE.Mesh(new THREE.BoxGeometry(1.1,.08,.5),new THREE.MeshBasicMaterial({color:0xffc35a}));
-    step.position.set(side*66,.12+row*.42,-31+row*8.1);scene.add(step);worldObjs.push(step);
-  }
+  // Auditorio completamente plano y despejado: sin butacas, escalones ni pasillos elevados.
+  // El suelo oscuro del auditorio es la única superficie de piso; queda libre para caminar.
   if(cinemaMediaData)applyCinemaMedia(cinemaMediaData,cinemaMediaMime);
 }
 function generateWorld(){
@@ -3156,7 +3138,7 @@ function lanStatus(t){$('lanStatus').textContent=t;}
 function withSeed(seed,fn){const old=Math.random;let x=(Number(seed)>>>0)||1;Math.random=()=>{x=(x*1664525+1013904223)>>>0;return x/4294967296;};try{return fn();}finally{Math.random=old;}}
 function resetNetSync(){net.lastRemoteState=null;net.remoteStates={};net.hostPhase=null;net.lastOutgoingHitRev=0;net.lastIncomingHitRev=0;net.outRevs={};net.inRevs={};}
 function netSlotOf(a){return a&&a.netSlot!==undefined?a.netSlot:(net.slot===0?1:0);}
-const CINEMA_MAX_FILE_BYTES=100*1024*1024; // 100 MB por archivo
+const CINEMA_MAX_FILE_BYTES=400*1024*1024; // 400 MB por archivo; adecuado para muchos MP4 de 5-10 minutos comprimidos
 const CINEMA_MAX_MEDIA_DATA_CHARS=Math.ceil(CINEMA_MAX_FILE_BYTES/3)*4+1024;
 const CINEMA_CHUNK_CHARS=48*1024;
 let cinemaIncomingTransfer=null;
@@ -3857,7 +3839,7 @@ $('cinemaFile').addEventListener('change',()=>{
   const f=$('cinemaFile').files&&$('cinemaFile').files[0];cinemaMediaData='';cinemaMediaMime='';
   if(!f){$('cinemaUploadStatus').textContent='Selecciona una foto o vídeo antes de crear la sala.';return;}
   if(!(/^image\//.test(f.type)||/^video\//.test(f.type))){$('cinemaUploadStatus').textContent='El archivo debe ser una imagen o vídeo.';$('cinemaFile').value='';return;}
-  if(f.size>CINEMA_MAX_FILE_BYTES){$('cinemaUploadStatus').textContent='El archivo supera 100 MB. Elige un vídeo más corto o una imagen más ligera.';$('cinemaFile').value='';return;}
+  if(f.size>CINEMA_MAX_FILE_BYTES){$('cinemaUploadStatus').textContent='El archivo supera 400 MB. Prueba a comprimir el vídeo o exportarlo en 720p/1080p con menor bitrate.';$('cinemaFile').value='';return;}
   $('cinemaUploadStatus').textContent='Cargando '+f.name+'…';
   const reader=new FileReader();reader.onload=()=>{cinemaMediaData=String(reader.result||'');cinemaMediaMime=f.type;$('cinemaUploadStatus').textContent='Listo: '+f.name+' ('+(f.size/1024/1024).toFixed(2)+' MB). Se enviará por fragmentos al entrar el otro jugador.';};
   reader.onerror=()=>{$('cinemaUploadStatus').textContent='No se pudo leer el archivo.';};reader.readAsDataURL(f);
@@ -3866,7 +3848,7 @@ $('cinemaPlayBtn').addEventListener('click',()=>{
   if(!cinemaVideoElement){$('cinemaStatus').textContent=cinemaMediaMime.startsWith('image/')?'La imagen está fija en la pantalla.':'Todavía no ha llegado ningún vídeo.';return;}
   setCinemaPlayback(!cinemaIsPlaying,false);
 });
-document.querySelectorAll('[data-lan-mode]').forEach(b=>b.addEventListener('click',()=>{lanSelectedMode=b.dataset.lanMode;net.requestedMode=lanSelectedMode;document.querySelectorAll('[data-lan-mode]').forEach(x=>x.classList.toggle('on',x===b));$('lanRaceTrackWrap').classList.toggle('hidden',lanSelectedMode!=='race');$('cinemaUploadBox').classList.toggle('hidden',lanSelectedMode!=='cinema');if(lanSelectedMode==='cinema')lanStatus('Cine multijugador: el anfitrión elige una foto o vídeo (máx. 100 MB). El modo se detecta automáticamente al unirse.');else if(lanSelectedMode==='ffa3')lanStatus('Todos vs todos: sala de 3 jugadores. La partida empieza cuando entren los 3; gana el primero en conseguir 3 rondas.');else if(lanSelectedMode==='chameleon')lanStatus('Modo Camaleón LAN: el anfitrión será el buscador; los demás serán escondedores. Ambos equipos deben usar la misma capacidad y un servidor compatible.');else if(lanSelectedMode==='battlezone')lanStatus('Zona de batalla LAN: la sala se inicia cuando alcanza el límite elegido, si el servidor soporta salas de varios jugadores.');else if(lanSelectedMode==='1v1fps')lanStatus('Duelo FPS LAN: dos jugadores, cámara en primera persona.');else if(lanSelectedMode==='race')lanStatus('Carreras LAN: el anfitrión decide el mapa; el rival recibirá automáticamente la misma pista.');else lanStatus('Modo '+b.textContent.trim()+' seleccionado. El juego online conecta a dos jugadores.');}));
+document.querySelectorAll('[data-lan-mode]').forEach(b=>b.addEventListener('click',()=>{lanSelectedMode=b.dataset.lanMode;net.requestedMode=lanSelectedMode;document.querySelectorAll('[data-lan-mode]').forEach(x=>x.classList.toggle('on',x===b));$('lanRaceTrackWrap').classList.toggle('hidden',lanSelectedMode!=='race');$('cinemaUploadBox').classList.toggle('hidden',lanSelectedMode!=='cinema');if(lanSelectedMode==='cinema')lanStatus('Cine multijugador: el anfitrión elige una foto o vídeo (máx. 400 MB). El modo se detecta automáticamente al unirse.');else if(lanSelectedMode==='ffa3')lanStatus('Todos vs todos: sala de 3 jugadores. La partida empieza cuando entren los 3; gana el primero en conseguir 3 rondas.');else if(lanSelectedMode==='chameleon')lanStatus('Modo Camaleón LAN: el anfitrión será el buscador; los demás serán escondedores. Ambos equipos deben usar la misma capacidad y un servidor compatible.');else if(lanSelectedMode==='battlezone')lanStatus('Zona de batalla LAN: la sala se inicia cuando alcanza el límite elegido, si el servidor soporta salas de varios jugadores.');else if(lanSelectedMode==='1v1fps')lanStatus('Duelo FPS LAN: dos jugadores, cámara en primera persona.');else if(lanSelectedMode==='race')lanStatus('Carreras LAN: el anfitrión decide el mapa; el rival recibirá automáticamente la misma pista.');else lanStatus('Modo '+b.textContent.trim()+' seleccionado. El juego online conecta a dos jugadores.');}));
 $('createRoomBtn').addEventListener('click',async()=>{
   await syncProfileForCurrentName();
   if(lanSelectedMode==='cinema'&&!cinemaMediaData){lanStatus('Primero selecciona una foto o vídeo en la sección del cine.');return;}
@@ -3893,7 +3875,7 @@ $('netGoBtn').addEventListener('click',()=>{requestLandscapeMode();audio();if(AC
 $('againBtn').addEventListener('click',()=>{requestLandscapeMode();if(net.active){$('againBtn').disabled=true;$('againBtn').textContent='ESPERANDO AL RIVAL…';lanSend({type:'rematch'});return;}audio();startMatch();});
 
 function spawnList(mode){
-  if(mode==='cinema')return[[-4,54],[4,54]];
+  if(mode==='cinema')return[[-8,34],[8,34]];
   if(mode==='chameleon')return[[-34,0],[30,29],[30,-29],[-25,32],[-25,-32]];
   if(mode==='battlezone')return[[-32,-41.8],[-19.2,-41.8],[-6.4,-41.8],[6.4,-41.8],[19.2,-41.8],[32,-41.8]];
   if(mode==='campaign'){const x=ARENA-9;return[[-x,0],[-x,-6],[-x,6],[x,-9],[x,-3],[x,3],[x,9]];}
