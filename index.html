@@ -3139,7 +3139,7 @@ function createBattleZoneFacade(){
   if(sign){const txt=document.createElement('canvas');txt.width=512;txt.height=96;const ctx=txt.getContext('2d');ctx.fillStyle='#263946';ctx.fillRect(0,0,512,96);ctx.fillStyle='#aaff76';ctx.font='bold 44px sans-serif';ctx.textAlign='center';ctx.fillText('ZONA DE BATALLA',256,62);const tex=new THREE.CanvasTexture(txt);const label=new THREE.Mesh(new THREE.PlaneGeometry(18,1.3),new THREE.MeshBasicMaterial({map:tex,transparent:true}));label.position.set(0,11.95,wallZ+.72);scene.add(label);worldObjs.push(label);}
 }
 
-const net={gen:0,slot:0,peers:[],remoteStates:{},inRevs:{},outRevs:{},ws:null,active:false,connecting:false,role:'',room:'',seed:1,peerName:'Rival',roomMode:'1v1',requestedMode:'1v1',requestedMaxPlayers:2,roomMaxPlayers:2,roomPlayerCount:1,previousMode:null,pendingAction:null,intentionalClose:false,applyingRemote:false,syncT:0,lastRemoteState:null,hostPhase:null,lastOutgoingHitRev:0,lastIncomingHitRev:0,lastSentCustomShirtId:'',raceTrackIndex:0};
+const net={gen:0,slot:0,peers:[],remoteStates:{},inRevs:{},outRevs:{},ws:null,mediaWs:null,mediaToken:'',active:false,connecting:false,role:'',room:'',seed:1,peerName:'Rival',roomMode:'1v1',requestedMode:'1v1',requestedMaxPlayers:2,roomMaxPlayers:2,roomPlayerCount:1,previousMode:null,pendingAction:null,intentionalClose:false,applyingRemote:false,syncT:0,lastRemoteState:null,hostPhase:null,lastOutgoingHitRev:0,lastIncomingHitRev:0,lastSentCustomShirtId:'',raceTrackIndex:0};
 const race={active:false,started:false,waitingForNetworkStart:false,readyLocal:false,objects:[],cars:[],localCar:null,remoteCar:null,track:null,trackIndex:0,bombs:[],effects:[],debris:[],elapsed:0,syncT:0,aiBombT:0,resolvedBombs:new Set(),finished:false,turboHeld:false,fireHeld:false,fireCd:0,hudT:0,trackLength:0,aimX:window.innerWidth*.5,aimY:window.innerHeight*.5,raycaster:new THREE.Raycaster(),aimNdc:new THREE.Vector2(),previousFog:null,previousBackground:null,previousGroundVisible:null,previousCameraFar:null,previousSunIntensity:null,previousHemiIntensity:null,hiddenArenaObjects:[],weather:'sunny',opponents:'bots',selectedTrackIndex:0,remoteReady:false,networkStartSent:false,rainMesh:null,drifting:false,headlightsOn:false,headlights:[],rainAudio:null,engineAudio:null,weatherAudioTimer:0};
 addEventListener('mousemove',e=>{race.aimX=e.clientX;race.aimY=e.clientY;const aim=$('raceAim');if(aim){aim.style.left=e.clientX+'px';aim.style.top=e.clientY+'px';}});
 addEventListener('resize',()=>{if(!race.aimX)race.aimX=window.innerWidth*.5;if(!race.aimY)race.aimY=window.innerHeight*.5;});
@@ -3148,118 +3148,208 @@ function withSeed(seed,fn){const old=Math.random;let x=(Number(seed)>>>0)||1;Mat
 function resetNetSync(){net.lastRemoteState=null;net.remoteStates={};net.hostPhase=null;net.lastOutgoingHitRev=0;net.lastIncomingHitRev=0;net.outRevs={};net.inRevs={};}
 function netSlotOf(a){return a&&a.netSlot!==undefined?a.netSlot:(net.slot===0?1:0);}
 const CINEMA_MAX_FILE_BYTES=400*1024*1024; // Se conserva el límite anterior de 400 MB.
-const CINEMA_BINARY_CHUNK_BYTES=1024*1024; // Fragmentos binarios de 1 MB: menos mensajes y sin expansión base64.
-let cinemaIncomingTransfer=null;
+const CINEMA_BINARY_CHUNK_BYTES=512*1024; // Fragmentos medianos para no bloquear el navegador.
+const CINEMA_TRANSFER_WINDOW=4; // Máximo aproximado de 2 MB pendientes de confirmación.
+let cinemaIncomingTransfer=null,cinemaOutgoingTransfer=null,cinemaMediaCleanup=null;
 let cinemaMediaData=null,cinemaMediaMime='',cinemaVideoElement=null,cinemaTexture=null,cinemaScreenMeshes=[],cinemaIsPlaying=false,cinemaMediaObjectUrl='',cinemaPendingPlayback=null;
+function cinemaMediaSend(obj){const ws=net.mediaWs;if(ws&&ws.readyState===WebSocket.OPEN){try{ws.send(JSON.stringify(obj));return true;}catch(e){}}return false;}
 function setCinemaTextureOnScreens(texture){
-  for(const screen of cinemaScreenMeshes){
-    if(!screen||!screen.material)continue;
-    screen.material.map=texture||null;
-    screen.material.color.setHex(texture?0xffffff:0x020307);
-    screen.material.needsUpdate=true;
-  }
+  for(const screen of cinemaScreenMeshes){if(!screen||!screen.material)continue;screen.material.map=texture||null;screen.material.color.setHex(texture?0xffffff:0x020307);screen.material.needsUpdate=true;}
 }
 function clearCinemaPlayback(){
   if(cinemaVideoElement){try{cinemaVideoElement.pause();cinemaVideoElement.removeAttribute('src');cinemaVideoElement.load();cinemaVideoElement.remove();}catch(e){}cinemaVideoElement=null;}
   if(cinemaTexture){try{cinemaTexture.dispose();}catch(e){}cinemaTexture=null;}
   if(cinemaMediaObjectUrl){try{URL.revokeObjectURL(cinemaMediaObjectUrl);}catch(e){}cinemaMediaObjectUrl='';}
-  setCinemaTextureOnScreens(null);
-  cinemaIsPlaying=false;
+  if(cinemaMediaCleanup){const cleanup=cinemaMediaCleanup;cinemaMediaCleanup=null;Promise.resolve().then(cleanup).catch(()=>{});}
+  setCinemaTextureOnScreens(null);cinemaIsPlaying=false;
   const b=document.getElementById('cinemaPlayBtn');if(b){b.textContent='▶ REPRODUCIR';b.disabled=false;}
 }
-function applyCinemaMedia(data,mime){
+function applyCinemaMedia(data,mime,cleanup=null){
   const isBlob=typeof Blob!=='undefined'&&data instanceof Blob;
   if(!isBlob&&(typeof data!=='string'||!data.startsWith('data:')||data.length>Math.ceil(CINEMA_MAX_FILE_BYTES/3)*4+1024))return;
   if(isBlob&&data.size>CINEMA_MAX_FILE_BYTES)return;
-  clearCinemaPlayback();cinemaMediaData=data;cinemaMediaMime=String(mime||(isBlob?data.type:data.slice(5,data.indexOf(';')))||'');
+  clearCinemaPlayback();cinemaMediaCleanup=typeof cleanup==='function'?cleanup:null;cinemaMediaData=data;cinemaMediaMime=String(mime||(isBlob?data.type:data.slice(5,data.indexOf(';')))||'');
   const src=isBlob?(cinemaMediaObjectUrl=URL.createObjectURL(data)):data;
   const status=document.getElementById('cinemaStatus'),btn=document.getElementById('cinemaPlayBtn');
   if(cinemaMediaMime.startsWith('video/')){
-    const v=document.createElement('video');v.src=src;v.loop=true;v.playsInline=true;v.preload='auto';v.muted=false;v.style.display='none';document.body.appendChild(v);cinemaVideoElement=v;
-    cinemaTexture=new THREE.VideoTexture(v);cinemaTexture.colorSpace=THREE.SRGBColorSpace;cinemaTexture.minFilter=THREE.LinearFilter;cinemaTexture.magFilter=THREE.LinearFilter;
-    setCinemaTextureOnScreens(cinemaTexture);
+    const v=document.createElement('video');v.src=src;v.loop=true;v.playsInline=true;v.preload='metadata';v.muted=false;v.style.display='none';document.body.appendChild(v);cinemaVideoElement=v;
+    cinemaTexture=new THREE.VideoTexture(v);cinemaTexture.colorSpace=THREE.SRGBColorSpace;cinemaTexture.minFilter=THREE.LinearFilter;cinemaTexture.magFilter=THREE.LinearFilter;setCinemaTextureOnScreens(cinemaTexture);
     status.textContent='Vídeo listo en las cuatro pantallas. Pulsa reproducir; los controles se sincronizan con la sala.';
     if(cinemaPendingPlayback){const pending=cinemaPendingPlayback;cinemaPendingPlayback=null;setCinemaPlayback(pending.playing,true,pending.currentTime,pending.receivedAt);}
-    else v.play().then(()=>{cinemaIsPlaying=true;btn.textContent='❚❚ PAUSAR';}).catch(()=>{cinemaIsPlaying=false;});
   }else if(cinemaMediaMime.startsWith('image/')){
-    new THREE.TextureLoader().load(src,tex=>{
-      tex.colorSpace=THREE.SRGBColorSpace;tex.minFilter=THREE.LinearFilter;tex.magFilter=THREE.LinearFilter;cinemaTexture=tex;setCinemaTextureOnScreens(tex);
-    },undefined,()=>{status.textContent='No se pudo cargar la imagen.';});
+    new THREE.TextureLoader().load(src,tex=>{tex.colorSpace=THREE.SRGBColorSpace;tex.minFilter=THREE.LinearFilter;tex.magFilter=THREE.LinearFilter;cinemaTexture=tex;setCinemaTextureOnScreens(tex);},undefined,()=>{status.textContent='No se pudo cargar la imagen.';});
     status.textContent='Imagen cargada en las cuatro pantallas.';btn.textContent='🖼️ FOTO FIJA';btn.disabled=true;
   }else status.textContent='Formato no compatible. Usa una imagen o vídeo.';
 }
 function setCinemaPlayback(playing,fromNetwork=false,remoteTime=null,receivedAt=0){
   if(!cinemaVideoElement){if(fromNetwork)cinemaPendingPlayback={playing:!!playing,currentTime:Number(remoteTime)||0,receivedAt:receivedAt||performance.now()};return;}
-  if(fromNetwork&&Number.isFinite(Number(remoteTime))){
-    let target=Math.max(0,Number(remoteTime)||0);
-    if(playing&&receivedAt)target+=Math.max(0,(performance.now()-receivedAt)/1000);
-    const seek=()=>{try{if(cinemaVideoElement)cinemaVideoElement.currentTime=target;}catch(e){}};
-    if(cinemaVideoElement.readyState>=1)seek();else cinemaVideoElement.addEventListener('loadedmetadata',seek,{once:true});
-  }
+  if(fromNetwork&&Number.isFinite(Number(remoteTime))){let target=Math.max(0,Number(remoteTime)||0);if(playing&&receivedAt)target+=Math.max(0,(performance.now()-receivedAt)/1000);const seek=()=>{try{if(cinemaVideoElement)cinemaVideoElement.currentTime=target;}catch(e){}};if(cinemaVideoElement.readyState>=1)seek();else cinemaVideoElement.addEventListener('loadedmetadata',seek,{once:true});}
   if(playing){cinemaVideoElement.play().then(()=>{cinemaIsPlaying=true;document.getElementById('cinemaPlayBtn').textContent='❚❚ PAUSAR';}).catch(()=>{document.getElementById('cinemaStatus').textContent='El navegador bloqueó el vídeo: pulsa reproducir otra vez.';});}
   else{cinemaVideoElement.pause();cinemaIsPlaying=false;document.getElementById('cinemaPlayBtn').textContent='▶ REPRODUCIR';}
-  if(!fromNetwork&&net.active)lanSend({type:'cinema-control',playing:!!playing,currentTime:cinemaVideoElement.currentTime||0});
+  if(!fromNetwork&&net.active)cinemaMediaSend({type:'cinema-control',playing:!!playing,currentTime:cinemaVideoElement.currentTime||0});
 }
-async function sendCinemaMediaToPeer(){
+function updateCinemaSendStatus(t){
+  if(!t)return;
+  const pct=Math.floor(t.ackedBytes/t.file.size*100);
+  $('cinemaStatus').textContent='Enviando al otro jugador… '+pct+'% ('+(t.ackedBytes/1024/1024).toFixed(1)+' / '+(t.file.size/1024/1024).toFixed(1)+' MB recibidos)';
+}
+function pumpCinemaMedia(){
+  const t=cinemaOutgoingTransfer,ws=net.mediaWs;
+  if(!t||t.pumping||t.endSent||!net.active||!ws||ws.readyState!==WebSocket.OPEN)return;
+  t.pumping=true;
+  (async()=>{
+    while(t.nextIndex<t.totalChunks&&t.inFlight.size<CINEMA_TRANSFER_WINDOW&&ws.bufferedAmount<2*1024*1024){
+      const index=t.nextIndex++;
+      const start=index*CINEMA_BINARY_CHUNK_BYTES,end=Math.min(t.file.size,start+CINEMA_BINARY_CHUNK_BYTES);
+      const chunk=await t.file.slice(start,end).arrayBuffer();
+      if(cinemaOutgoingTransfer!==t||!net.active||ws.readyState!==WebSocket.OPEN)return;
+      const frame=new Uint8Array(4+chunk.byteLength);
+      new DataView(frame.buffer).setUint32(0,index,true);
+      frame.set(new Uint8Array(chunk),4);
+      t.inFlight.add(index);
+      ws.send(frame.buffer);
+      t.sentBytes+=chunk.byteLength;
+    }
+  })().then(()=>{
+    t.pumping=false;
+    if(cinemaOutgoingTransfer!==t)return;
+    if(t.nextIndex===t.totalChunks&&t.inFlight.size===0&&!t.endSent){
+      t.endSent=true;
+      if(!cinemaMediaSend({type:'cinema-media-end',transferId:t.id})){$('cinemaStatus').textContent='No se pudo finalizar el envío. Comprueba la conexión de vídeo.';}
+      else $('cinemaStatus').textContent='Todos los fragmentos llegaron. Verificando el archivo…';
+      return;
+    }
+    updateCinemaSendStatus(t);
+    if(t.nextIndex<t.totalChunks&&t.inFlight.size<CINEMA_TRANSFER_WINDOW)setTimeout(pumpCinemaMedia,15);
+  }).catch(err=>{
+    t.pumping=false;
+    if(cinemaOutgoingTransfer===t){cinemaOutgoingTransfer=null;$('cinemaStatus').textContent='Error enviando el vídeo: '+(err&&err.message?err.message:'fallo de transferencia');}
+  });
+}
+function sendCinemaMediaToPeer(){
   if(!net.active||net.role!=='host'||net.roomMode!=='cinema'||!cinemaMediaData)return;
-  const file=cinemaMediaData,mime=cinemaMediaMime;
+  const file=cinemaMediaData,mime=cinemaMediaMime,ws=net.mediaWs;
   if(!(file instanceof Blob)||file.size<1||file.size>CINEMA_MAX_FILE_BYTES){$('cinemaStatus').textContent='El archivo no es válido o supera 400 MB.';return;}
-  const transferId='cine-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,9);
+  if(!ws||ws.readyState!==WebSocket.OPEN){$('cinemaStatus').textContent='Conectando el canal independiente del vídeo…';return;}
+  if(cinemaOutgoingTransfer&&cinemaOutgoingTransfer.id)return;
+  const id='cine-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,9);
   const totalChunks=Math.ceil(file.size/CINEMA_BINARY_CHUNK_BYTES);
-  if(!lanSend({type:'cinema-media-start',transferId,mime,totalBytes:file.size,totalChunks,chunkBytes:CINEMA_BINARY_CHUNK_BYTES})){
-    $('cinemaStatus').textContent='No se pudo iniciar el envío del vídeo. Comprueba la conexión.';return;
+  const t=cinemaOutgoingTransfer={id,file,mime,totalChunks,nextIndex:0,inFlight:new Set(),sentBytes:0,ackedBytes:0,pumping:false,endSent:false};
+  if(!cinemaMediaSend({type:'cinema-media-start',transferId:id,mime,totalBytes:file.size,totalChunks,chunkBytes:CINEMA_BINARY_CHUNK_BYTES})){
+    cinemaOutgoingTransfer=null;$('cinemaStatus').textContent='No se pudo iniciar el envío del vídeo.';return;
   }
-  $('cinemaStatus').textContent='Enviando vídeo al otro jugador… 0%';
-  let index=0,lastShown=0,sentBytes=0;
-  const pump=async()=>{
-    try{
-      if(!net.active||net.roomMode!=='cinema'||!net.ws||net.ws.readyState!==WebSocket.OPEN)return;
-      let batch=0;
-      // Ventanas de hasta 8 MB. Se aprovecha mejor la conexión y se respeta la contrapresión.
-      while(index<totalChunks&&net.ws.bufferedAmount<4*1024*1024&&batch<8){
-        const start=index*CINEMA_BINARY_CHUNK_BYTES,end=Math.min(file.size,start+CINEMA_BINARY_CHUNK_BYTES);
-        const chunk=await file.slice(start,end).arrayBuffer();
-        if(!net.active||!net.ws||net.ws.readyState!==WebSocket.OPEN)return;
-        net.ws.send(chunk);sentBytes+=chunk.byteLength;index++;batch++;
-      }
-      const pct=Math.floor(sentBytes/file.size*100);
-      if(pct>=lastShown+5||pct===100){lastShown=pct;$('cinemaStatus').textContent='Enviando al otro jugador… '+pct+'% ('+(sentBytes/1024/1024).toFixed(1)+' / '+(file.size/1024/1024).toFixed(1)+' MB)';}
-      if(index<totalChunks){setTimeout(()=>pump().catch(()=>{$('cinemaStatus').textContent='Se interrumpió el envío. Comprueba la conexión e inténtalo otra vez.';}),8);return;}
-      lanSend({type:'cinema-media-end',transferId});
-      $('cinemaStatus').textContent='Envío completado. El vídeo ya está disponible en las cuatro pantallas.';
-    }catch(err){$('cinemaStatus').textContent='Error leyendo o enviando el vídeo. Inténtalo de nuevo.';}
-  };
-  pump();
+  $('cinemaStatus').textContent='Preparando almacenamiento seguro en el dispositivo del otro jugador…';
+}
+function failCinemaIncomingTransfer(transfer,message){
+  if(transfer&&transfer.writer){try{transfer.writer.abort();}catch(e){}}
+  if(transfer&&transfer.id)cinemaMediaSend({type:'cinema-media-fail',transferId:transfer.id,message:String(message||'No se pudo guardar el vídeo.').slice(0,180)});
+  if(cinemaIncomingTransfer===transfer)cinemaIncomingTransfer=null;
+  $('cinemaStatus').textContent=message||'No se pudo recibir el vídeo.';
+}
+async function prepareCinemaIncomingStorage(transfer){
+  try{
+    if(!navigator.storage||typeof navigator.storage.getDirectory!=='function')throw new Error('Este navegador no ofrece almacenamiento temporal en disco.');
+    const estimate=await navigator.storage.estimate().catch(()=>null);
+    if(estimate&&Number.isFinite(estimate.quota)&&Number.isFinite(estimate.usage)&&estimate.quota-estimate.usage<transfer.totalBytes+16*1024*1024)throw new Error('No hay espacio suficiente en el almacenamiento del navegador.');
+    const root=await navigator.storage.getDirectory();
+    const dir=await root.getDirectoryHandle('arena-cinema-transfers',{create:true});
+    const filename=transfer.id.replace(/[^a-z0-9_-]/gi,'')+'.media';
+    const handle=await dir.getFileHandle(filename,{create:true});
+    transfer.writer=await handle.createWritable({keepExistingData:false});
+    transfer.cleanup=async()=>{try{await dir.removeEntry(filename);}catch(e){}};
+    transfer.storage='disk';
+  }catch(err){
+    if(transfer.totalBytes>96*1024*1024)throw new Error((err&&err.message?err.message:'No se pudo preparar el disco')+' Para vídeos grandes usa Chrome o Edge actualizado y permite almacenamiento del sitio.');
+    transfer.storage='memory';transfer.chunks=[];
+  }
+  transfer.storageReady=true;
+  cinemaMediaSend({type:'cinema-media-ready',transferId:transfer.id,storage:transfer.storage});
+  $('cinemaStatus').textContent=transfer.storage==='disk'?'Almacenamiento en disco preparado. Recibiendo vídeo… 0%':'Recibiendo vídeo… 0%';
 }
 function receiveCinemaMediaMessage(d){
-  if(!net.active||net.roomMode!=='cinema'||net.role==='host')return;
-  if(d.type==='cinema-media-start'){
+  if(!net.active||net.roomMode!=='cinema')return;
+  if(d.type==='cinema-media-start'&&net.role!=='host'){
     const totalBytes=Number(d.totalBytes),totalChunks=Number(d.totalChunks),chunkBytes=Number(d.chunkBytes);
-    if(typeof d.transferId!=='string'||!d.transferId.startsWith('cine-')||!/^((image|video)\/[a-zA-Z0-9.+-]+)$/.test(String(d.mime||''))||
-       !Number.isSafeInteger(totalBytes)||totalBytes<1||totalBytes>CINEMA_MAX_FILE_BYTES||
-       chunkBytes!==CINEMA_BINARY_CHUNK_BYTES||!Number.isSafeInteger(totalChunks)||totalChunks!==Math.ceil(totalBytes/CINEMA_BINARY_CHUNK_BYTES)){
-      $('cinemaStatus').textContent='El anfitrión envió un archivo no válido o demasiado grande.';cinemaIncomingTransfer=null;return;
-    }
-    cinemaIncomingTransfer={id:d.transferId,mime:d.mime,totalBytes,totalChunks,chunks:[],receivedBytes:0,lastPct:-1};
-    $('cinemaStatus').textContent='Recibiendo vídeo del anfitrión… 0%';
+    if(typeof d.transferId!=='string'||!d.transferId.startsWith('cine-')||!/^((image|video)\/[a-zA-Z0-9.+-]+)$/.test(String(d.mime||''))||!Number.isSafeInteger(totalBytes)||totalBytes<1||totalBytes>CINEMA_MAX_FILE_BYTES||chunkBytes!==CINEMA_BINARY_CHUNK_BYTES||!Number.isSafeInteger(totalChunks)||totalChunks!==Math.ceil(totalBytes/CINEMA_BINARY_CHUNK_BYTES)){$('cinemaStatus').textContent='El anfitrión envió un archivo no válido o demasiado grande.';return;}
+    const t={id:d.transferId,mime:d.mime,totalBytes,totalChunks,receivedBytes:0,receivedChunks:0,nextQueuedIndex:0,lastPct:-1,writer:null,handle:null,cleanup:null,storageReady:false,chunks:[],writeQueue:Promise.resolve()};
+    cinemaIncomingTransfer=t;
+    t.readyPromise=prepareCinemaIncomingStorage(t).catch(err=>failCinemaIncomingTransfer(t,err&&err.message?err.message:'No se pudo preparar el almacenamiento.'));
     return;
   }
-  const transfer=cinemaIncomingTransfer;
-  if(!transfer||d.transferId!==transfer.id)return;
-  if(d.type==='cinema-media-end'){
-    if(transfer.receivedBytes!==transfer.totalBytes||transfer.chunks.length!==transfer.totalChunks){$('cinemaStatus').textContent='La transferencia quedó incompleta. Pide al anfitrión que vuelva a enviarlo.';cinemaIncomingTransfer=null;return;}
-    const blob=new Blob(transfer.chunks,{type:transfer.mime}),mime=transfer.mime;cinemaIncomingTransfer=null;applyCinemaMedia(blob,mime);
-    $('cinemaStatus').textContent='Vídeo recibido y cargado en las cuatro pantallas. Pulsa reproducir.';
+  if(d.type==='cinema-media-ack'&&net.role==='host'){
+    const t=cinemaOutgoingTransfer;if(!t||d.transferId!==t.id||!Number.isInteger(d.index)||!t.inFlight.has(d.index))return;
+    t.inFlight.delete(d.index);const start=d.index*CINEMA_BINARY_CHUNK_BYTES;t.ackedBytes+=Math.min(CINEMA_BINARY_CHUNK_BYTES,Math.max(0,t.file.size-start));updateCinemaSendStatus(t);pumpCinemaMedia();return;
+  }
+  if(d.type==='cinema-media-ready'&&net.role==='host'){
+    if(cinemaOutgoingTransfer&&cinemaOutgoingTransfer.id===d.transferId)pumpCinemaMedia();return;
+  }
+  if(d.type==='cinema-media-end'&&net.role!=='host'){
+    const t=cinemaIncomingTransfer;if(!t||d.transferId!==t.id)return;
+    (async()=>{
+      try{
+        await t.readyPromise;await t.writeQueue;
+        if(cinemaIncomingTransfer!==t)return;
+        if(t.receivedBytes!==t.totalBytes||t.receivedChunks!==t.totalChunks)throw new Error('La transferencia llegó incompleta. Pide al anfitrión que la reenvíe.');
+        let media,cleanup=t.cleanup;
+        if(t.writer){await t.writer.close();media=await t.handle.getFile();}
+        else media=new Blob(t.chunks,{type:t.mime});
+        cinemaIncomingTransfer=null;applyCinemaMedia(media,t.mime,cleanup);
+        $('cinemaStatus').textContent='Vídeo recibido y preparado en las cuatro pantallas. Pulsa reproducir.';
+      }catch(err){failCinemaIncomingTransfer(t,err&&err.message?err.message:'Error finalizando el vídeo.');}
+    })();
+    return;
+  }
+  if(d.type==='cinema-media-complete'&&net.role==='host'){
+    if(cinemaOutgoingTransfer&&d.transferId===cinemaOutgoingTransfer.id){cinemaOutgoingTransfer=null;$('cinemaStatus').textContent='¡Vídeo transferido correctamente! Ya está disponible en las cuatro pantallas.';}return;
+  }
+  if(d.type==='cinema-media-fail'){
+    if(net.role==='host'){cinemaOutgoingTransfer=null;$('cinemaStatus').textContent='El otro jugador no pudo guardar el vídeo: '+String(d.message||'espacio insuficiente');}
+    return;
+  }
+  if(d.type==='cinema-control'){
+    if(net.active&&net.roomMode==='cinema')setCinemaPlayback(!!d.playing,true,d.currentTime,performance.now());
   }
 }
 function receiveCinemaBinaryChunk(buffer){
-  const transfer=cinemaIncomingTransfer;if(!net.active||net.roomMode!=='cinema'||net.role==='host'||!transfer)return;
-  if(!(buffer instanceof ArrayBuffer))return;
-  const size=buffer.byteLength;
-  if(size<1||size>CINEMA_BINARY_CHUNK_BYTES||transfer.receivedBytes+size>transfer.totalBytes){cinemaIncomingTransfer=null;$('cinemaStatus').textContent='Se recibió un fragmento inválido. Vuelve a compartir el vídeo.';return;}
-  transfer.chunks.push(buffer);transfer.receivedBytes+=size;
-  const pct=Math.floor(transfer.receivedBytes/transfer.totalBytes*100);
-  if(pct>=transfer.lastPct+5){transfer.lastPct=pct;$('cinemaStatus').textContent='Recibiendo vídeo… '+pct+'% ('+(transfer.receivedBytes/1024/1024).toFixed(1)+' / '+(transfer.totalBytes/1024/1024).toFixed(1)+' MB)';}
+  const t=cinemaIncomingTransfer;
+  if(!net.active||net.roomMode!=='cinema'||net.role==='host'||!t)return;
+  if(!(buffer instanceof ArrayBuffer)||buffer.byteLength<5){failCinemaIncomingTransfer(t,'Se recibió un fragmento inválido.');return;}
+  const view=new DataView(buffer),index=view.getUint32(0,true),payload=buffer.slice(4),size=payload.byteLength;
+  const expected=Math.min(CINEMA_BINARY_CHUNK_BYTES,t.totalBytes-index*CINEMA_BINARY_CHUNK_BYTES);
+  if(index!==t.nextQueuedIndex||index>=t.totalChunks||size<1||size!==expected){failCinemaIncomingTransfer(t,'Los fragmentos llegaron desordenados o incompletos. Vuelve a compartir el vídeo.');return;}
+  t.nextQueuedIndex++;
+  t.writeQueue=t.writeQueue.then(async()=>{
+    await t.readyPromise;if(cinemaIncomingTransfer!==t)throw new Error('La transferencia fue cancelada.');
+    if(t.writer)await t.writer.write(payload);else t.chunks.push(payload);
+    t.receivedBytes+=size;t.receivedChunks++;
+    const pct=Math.floor(t.receivedBytes/t.totalBytes*100);
+    if(pct>=t.lastPct+5){t.lastPct=pct;$('cinemaStatus').textContent='Recibiendo vídeo… '+pct+'% ('+(t.receivedBytes/1024/1024).toFixed(1)+' / '+(t.totalBytes/1024/1024).toFixed(1)+' MB)';}
+    cinemaMediaSend({type:'cinema-media-ack',transferId:t.id,index});
+  }).catch(err=>failCinemaIncomingTransfer(t,err&&err.message?err.message:'Error guardando un fragmento del vídeo.'));
+}
+function connectCinemaMediaChannel(){
+  if(!net.active||net.roomMode!=='cinema'||!net.mediaToken)return;
+  if(net.mediaWs&&(net.mediaWs.readyState===WebSocket.OPEN||net.mediaWs.readyState===WebSocket.CONNECTING))return;
+  const scheme=location.protocol==='https:'?'wss://':'ws://';
+  let media;
+  try{media=new WebSocket(scheme+location.host+'/ws-media');}catch(e){$('cinemaStatus').textContent='No se pudo abrir el canal independiente del vídeo.';return;}
+  net.mediaWs=media;media.binaryType='arraybuffer';
+  media.onopen=()=>{try{media.send(JSON.stringify({type:'attach',room:net.room,token:net.mediaToken}));}catch(e){$('cinemaStatus').textContent='No se pudo autenticar el canal del vídeo.';}};
+  media.onmessage=e=>{
+    if(typeof e.data!=='string'){receiveCinemaBinaryChunk(e.data);return;}
+    let d;try{d=JSON.parse(e.data);}catch(err){return;}
+    if(d.type==='media-attached'){$('cinemaStatus').textContent='Canal de vídeo conectado. Esperando al otro jugador…';}
+    else if(d.type==='media-ready'&&net.role==='host')sendCinemaMediaToPeer();
+    else if(d.type==='cinema-media-start'||d.type==='cinema-media-ack'||d.type==='cinema-media-ready'||d.type==='cinema-media-end'||d.type==='cinema-media-complete'||d.type==='cinema-media-fail'||d.type==='cinema-control')receiveCinemaMediaMessage(d);
+    else if(d.type==='media-error'){cinemaOutgoingTransfer=null;cinemaIncomingTransfer=null;$('cinemaStatus').textContent=d.message||'Error en el canal del vídeo.';}
+    else if(d.type==='media-peer-disconnected'){cinemaOutgoingTransfer=null;cinemaIncomingTransfer=null;$('cinemaStatus').textContent='Se desconectó el canal de vídeo del otro jugador. La partida y los controles siguen conectados.';}
+  };
+  media.onerror=()=>{$('cinemaStatus').textContent='Error en la conexión independiente del vídeo. El juego sigue conectado.';};
+  media.onclose=()=>{if(net.mediaWs===media)net.mediaWs=null;if(net.active&&net.roomMode==='cinema')$('cinemaStatus').textContent='Se perdió el canal de vídeo; los controles del juego siguen conectados.';};
+}
+function closeCinemaMediaChannel(){
+  const media=net.mediaWs;net.mediaWs=null;net.mediaToken='';cinemaIncomingTransfer=null;cinemaOutgoingTransfer=null;
+  if(media){try{media.onclose=null;media.close();}catch(e){}}
 }
 function lanSend(obj){if(net.ws&&net.ws.readyState===WebSocket.OPEN){try{net.ws.send(JSON.stringify(obj));return true;}catch(e){}}return false;}
 
@@ -3725,9 +3815,9 @@ function lanConnect(action){
   lanStatus('Conectando con el servidor online…');
   const scheme=location.protocol==='https:'?'wss://':'ws://';
   try{net.ws=new WebSocket(scheme+location.host+'/ws');}catch(e){net.connecting=false;lanStatus('No se pudo crear la conexión. Comprueba que el servidor LAN está iniciado.');return;}
-  const ws=net.ws;ws.binaryType='arraybuffer';
+  const ws=net.ws;
   ws.onopen=()=>{net.connecting=false;if(net.pendingAction){lanSend(net.pendingAction);net.pendingAction=null;}};
-  ws.onmessage=e=>{if(typeof e.data!=='string'){receiveCinemaBinaryChunk(e.data);return;}let d;try{d=JSON.parse(e.data);}catch(err){return;}lanMessage(d);};
+  ws.onmessage=e=>{if(typeof e.data!=='string')return;let d;try{d=JSON.parse(e.data);}catch(err){return;}lanMessage(d);};
   ws.onerror=()=>{net.connecting=false;lanStatus('No se pudo conectar al servidor online. Revisa que la página esté publicada en Render.');};
   ws.onclose=()=>{const unexpected=!ws.__intentionalClose;net.connecting=false;if(net.ws===ws)net.ws=null;if(unexpected&&net.active)lanPeerLeft('Se perdió la conexión con el servidor LAN.');};
 }
@@ -3743,16 +3833,14 @@ function lanMessage(d){
   }else if(d.type==='waiting'){
     net.roomPlayerCount=clamp(Number(d.playerCount)||1,1,5);net.roomMaxPlayers=clamp(Number(d.maxPlayers)||net.roomMaxPlayers||2,1,5);if(d.role)net.role=d.role;if(d.room)net.room=d.room;if(d.seed)net.seed=d.seed;if(d.mode)net.roomMode=d.mode;lanStatus((d.message||'Esperando a que se llene la sala…')+' ('+net.roomPlayerCount+'/'+net.roomMaxPlayers+')');
   }else if(d.type==='ready'){
-    net.gen=0;net.active=true;net.role=d.role;net.room=d.room;net.seed=d.seed||1;net.roomMode=d.mode||d.roomMode||net.requestedMode||'1v1';net.roomMaxPlayers=clamp(Number(d.maxPlayers)||net.roomMaxPlayers||net.requestedMaxPlayers||2,1,5);net.roomPlayerCount=clamp(Number(d.playerCount)||net.roomMaxPlayers,1,5);net.peerName=d.peerName||'Rival';resetNetSync();net.lastSentCustomShirtId='';
+    net.gen=0;net.active=true;net.role=d.role;net.room=d.room;net.mediaToken=d.mediaToken||'';net.seed=d.seed||1;net.roomMode=d.mode||d.roomMode||net.requestedMode||'1v1';net.roomMaxPlayers=clamp(Number(d.maxPlayers)||net.roomMaxPlayers||net.requestedMaxPlayers||2,1,5);net.roomPlayerCount=clamp(Number(d.playerCount)||net.roomMaxPlayers,1,5);net.peerName=d.peerName||'Rival';resetNetSync();net.lastSentCustomShirtId='';
     net.slot=Number.isInteger(d.slot)?d.slot:(d.role==='host'?0:1);net.peers=Array.isArray(d.peers)&&d.peers.length?d.peers.map(p=>({slot:Number(p.slot)||0,name:String(p.name||'Rival').slice(0,24)})):[{slot:net.slot===0?1:0,name:d.peerName||'Rival'}];
     startNetworkMatch();
   }else if(d.type==='error'){
     $('againBtn').disabled=false;$('againBtn').textContent='JUGAR DE NUEVO';
     lanStatus(d.message||'No se pudo completar la operación.');
-  }else if(d.type==='cinema-media-start'||d.type==='cinema-media-chunk'||d.type==='cinema-media-end'){
-    receiveCinemaMediaMessage(d);
   }else if(d.type==='cinema-control'){
-    if(net.active&&net.roomMode==='cinema')setCinemaPlayback(!!d.playing,true,d.currentTime);
+    if(net.active&&net.roomMode==='cinema')setCinemaPlayback(!!d.playing,true,d.currentTime,performance.now());
   }else if(d.type==='race-config'){
     if(net.active&&net.roomMode==='race')applyNetworkRaceTrack(d.trackIndex);
   }else if(d.type==='race-client-ready'){
@@ -3824,7 +3912,7 @@ function startNetworkMatch(){
   settings.mode=net.roomMode==='ffa3'?'ffa':['race','chameleon','battlezone','1v1fps','cinema'].includes(net.roomMode)?net.roomMode:'1v1';
   $('lanPanel').classList.add('hidden');$('menu').classList.add('hidden');
   startMatch();
-  if(net.roomMode==='cinema'&&net.role==='host'&&cinemaMediaData)sendCinemaMediaToPeer();
+  if(net.roomMode==='cinema')connectCinemaMediaChannel();
   if(net.roomMode==='race'&&net.role==='host'){
     net.raceTrackIndex=clamp(Math.trunc(Number(race.selectedTrackIndex)||0),0,RACE_TRACKS.length-1);
     lanSend({type:'race-config',trackIndex:net.raceTrackIndex});
@@ -3840,7 +3928,7 @@ function lanPeerLeft(message){
   else lanStatus(message);
 }
 function disconnectLan(restoreMode=true){
-  net.intentionalClose=true;
+  net.intentionalClose=true;closeCinemaMediaChannel();
   if(net.ws){const old=net.ws;old.__intentionalClose=true;try{if(old.readyState===WebSocket.OPEN)old.send(JSON.stringify({type:'leave'}));old.close();}catch(e){}net.ws=null;}
   net.active=false;net.connecting=false;net.pendingAction=null;net.role='';net.room='';resetNetSync();
   if(restoreMode&&net.previousMode!==null){settings.mode=net.previousMode;if(typeof setMode==='function')setMode(settings.mode);net.previousMode=null;}
@@ -4064,7 +4152,7 @@ function toMenu(){
   if(race.active||race.objects.length)clearRaceWorld();
   clearChameleonSplashes();clearChameleonPaintStamps();setChameleonBrushMode(false,false);
   document.body.classList.remove('race-mode','cinema-mode','chameleon-mode','battlezone-mode','academy-mode');$('cinemaControls').classList.add('hidden');$('chameleonTools').classList.add('hidden');$('touchControls').classList.remove('racing');
-  if(net.active||net.ws)disconnectLan(true);
+  if(net.active||net.ws||net.mediaWs)disconnectLan(true);
   $('netReady').classList.add('hidden');$('lanPanel').classList.add('hidden');
   for(const a of actors)scene.remove(a.mesh);actors.length=0;player=null;
   clearPieces();clearProjectiles();clearPickups();
